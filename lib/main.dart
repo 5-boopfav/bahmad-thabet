@@ -73,6 +73,18 @@ const List<BoardTheme> boardThemes = [
 ];
 
 // ======================================================
+// خلفيات التطبيق
+// ======================================================
+
+const List<Color> appBackgrounds = [
+  Color(0xfff5f5f5),
+  Color(0xffe8e8e8),
+  Color(0xff171717),
+  Color(0xff34271f),
+  Color(0xffe8edf4),
+];
+
+// ======================================================
 // التطبيق
 // ======================================================
 
@@ -85,10 +97,14 @@ class ThabetApp extends StatefulWidget {
 
 class _ThabetAppState extends State<ThabetApp> {
   int themeIndex = 0;
+  int backgroundIndex = 0;
+
   bool soundEnabled = true;
   bool vibrationEnabled = true;
 
   BoardTheme get theme => boardThemes[themeIndex];
+
+  Color get appBackground => appBackgrounds[backgroundIndex];
 
   void sound() {
     if (soundEnabled) {
@@ -108,21 +124,27 @@ class _ThabetAppState extends State<ThabetApp> {
       debugShowCheckedModeBanner: false,
       title: 'ثبّت',
       theme: ThemeData(
-        brightness: Brightness.dark,
+        brightness: Brightness.light,
         useMaterial3: true,
+        scaffoldBackgroundColor: appBackground,
         colorScheme: ColorScheme.fromSeed(
           seedColor: theme.accent,
-          brightness: Brightness.dark,
+          brightness: Brightness.light,
         ),
       ),
       home: HomePage(
         theme: theme,
         themeIndex: themeIndex,
+        appBackground: appBackground,
+        backgroundIndex: backgroundIndex,
         onThemeChanged: (v) => setState(() => themeIndex = v),
+        onBackgroundChanged: (v) =>
+            setState(() => backgroundIndex = v),
         soundEnabled: soundEnabled,
         vibrationEnabled: vibrationEnabled,
         onSoundChanged: (v) => setState(() => soundEnabled = v),
-        onVibrationChanged: (v) => setState(() => vibrationEnabled = v),
+        onVibrationChanged: (v) =>
+            setState(() => vibrationEnabled = v),
         sound: sound,
         vibrate: vibrate,
       ),
@@ -137,11 +159,18 @@ class _ThabetAppState extends State<ThabetApp> {
 class HomePage extends StatelessWidget {
   final BoardTheme theme;
   final int themeIndex;
+  final Color appBackground;
+  final int backgroundIndex;
+
   final ValueChanged<int> onThemeChanged;
+  final ValueChanged<int> onBackgroundChanged;
+
   final bool soundEnabled;
   final bool vibrationEnabled;
+
   final ValueChanged<bool> onSoundChanged;
   final ValueChanged<bool> onVibrationChanged;
+
   final VoidCallback sound;
   final VoidCallback vibrate;
 
@@ -149,7 +178,10 @@ class HomePage extends StatelessWidget {
     super.key,
     required this.theme,
     required this.themeIndex,
+    required this.appBackground,
+    required this.backgroundIndex,
     required this.onThemeChanged,
+    required this.onBackgroundChanged,
     required this.soundEnabled,
     required this.vibrationEnabled,
     required this.onSoundChanged,
@@ -158,10 +190,16 @@ class HomePage extends StatelessWidget {
     required this.vibrate,
   });
 
+  bool get isDark =>
+      ThemeData.estimateBrightnessForColor(appBackground) ==
+      Brightness.dark;
+
+  Color get textColor => isDark ? Colors.white : Colors.black87;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: theme.background,
+      backgroundColor: appBackground,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(22),
@@ -174,7 +212,10 @@ class HomePage extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: theme.wood,
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: theme.lines, width: 2),
+                  border: Border.all(
+                    color: theme.lines,
+                    width: 2,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: theme.accent.withOpacity(.3),
@@ -194,7 +235,7 @@ class HomePage extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 50,
                   fontWeight: FontWeight.bold,
-                  color: theme.lines,
+                  color: theme.accent,
                 ),
               ),
               Text(
@@ -202,13 +243,16 @@ class HomePage extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   letterSpacing: 4,
-                  color: theme.lines.withOpacity(.8),
+                  color: textColor.withOpacity(.7),
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'لعبة الذكاء والتحدي',
-                style: TextStyle(fontSize: 16, color: Colors.white70),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: textColor.withOpacity(.7),
+                ),
               ),
               const SizedBox(height: 45),
               _button(
@@ -247,9 +291,12 @@ class HomePage extends StatelessWidget {
                 () => _settings(context),
               ),
               const SizedBox(height: 40),
-              const Text(
+              Text(
                 'BAHMAD • 2026',
-                style: TextStyle(color: Colors.white30, letterSpacing: 2),
+                style: TextStyle(
+                  color: textColor.withOpacity(.35),
+                  letterSpacing: 2,
+                ),
               ),
             ],
           ),
@@ -274,7 +321,9 @@ class HomePage extends StatelessWidget {
               icon: Icon(icon),
               label: Text(
                 title,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: theme.accent,
@@ -286,10 +335,15 @@ class HomePage extends StatelessWidget {
             )
           : OutlinedButton.icon(
               onPressed: action,
-              icon: Icon(icon, color: theme.lines),
-              label: Text(title, style: TextStyle(color: theme.lines)),
+              icon: Icon(icon, color: theme.accent),
+              label: Text(
+                title,
+                style: TextStyle(color: textColor),
+              ),
               style: OutlinedButton.styleFrom(
-                side: BorderSide(color: theme.lines.withOpacity(.5)),
+                side: BorderSide(
+                  color: theme.accent.withOpacity(.5),
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
@@ -298,7 +352,11 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  void _start(BuildContext context, bool computer, int difficulty) {
+  void _start(
+    BuildContext context,
+    bool computer,
+    int difficulty,
+  ) {
     sound();
     vibrate();
 
@@ -307,6 +365,7 @@ class HomePage extends StatelessWidget {
       MaterialPageRoute(
         builder: (_) => GamePage(
           theme: theme,
+          appBackground: appBackground,
           computerMode: computer,
           difficulty: difficulty,
           sound: sound,
@@ -335,9 +394,27 @@ class HomePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 15),
-              _difficultyTile(ctx, context, 'سهل', 'مناسب للمبتدئين', 1),
-              _difficultyTile(ctx, context, 'متوسط', 'تحدٍّ متوازن', 2),
-              _difficultyTile(ctx, context, 'صعب', 'خصم أكثر ذكاءً', 3),
+              _difficultyTile(
+                ctx,
+                context,
+                'سهل',
+                'مناسب للمبتدئين',
+                1,
+              ),
+              _difficultyTile(
+                ctx,
+                context,
+                'متوسط',
+                'تحدٍّ متوازن',
+                2,
+              ),
+              _difficultyTile(
+                ctx,
+                context,
+                'صعب',
+                'خصم أكثر ذكاءً',
+                3,
+              ),
             ],
           ),
         ),
@@ -376,18 +453,27 @@ class HomePage extends StatelessWidget {
               child: Text(
                 'اختر مظهر الطاولة',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             for (int i = 0; i < boardThemes.length; i++)
               ListTile(
                 leading: CircleAvatar(
                   backgroundColor: boardThemes[i].wood,
-                  child: Icon(Icons.palette, color: boardThemes[i].lines),
+                  child: Icon(
+                    Icons.palette,
+                    color: boardThemes[i].lines,
+                  ),
                 ),
                 title: Text(boardThemes[i].name),
                 trailing: themeIndex == i
-                    ? Icon(Icons.check_circle, color: theme.lines)
+                    ? Icon(
+                        Icons.check_circle,
+                        color: theme.lines,
+                      )
                     : null,
                 onTap: () {
                   onThemeChanged(i);
@@ -413,8 +499,12 @@ class HomePage extends StatelessWidget {
               children: [
                 const Text(
                   'إعدادات اللعبة',
-                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                const SizedBox(height: 8),
                 SwitchListTile(
                   title: const Text('الأصوات'),
                   value: soundEnabled,
@@ -431,6 +521,51 @@ class HomePage extends StatelessWidget {
                     setSheet(() {});
                   },
                 ),
+                const Divider(),
+                const Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'خلفية التطبيق',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: List.generate(
+                    appBackgrounds.length,
+                    (i) => GestureDetector(
+                      onTap: () {
+                        onBackgroundChanged(i);
+                        setSheet(() {});
+                      },
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: appBackgrounds[i],
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: backgroundIndex == i
+                                ? theme.accent
+                                : Colors.grey,
+                            width: backgroundIndex == i ? 3 : 1,
+                          ),
+                        ),
+                        child: backgroundIndex == i
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.green,
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -444,7 +579,10 @@ class HomePage extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xff2b2018),
-        title: Text('قواعد ثبّت', style: TextStyle(color: theme.lines)),
+        title: Text(
+          'قواعد ثبّت',
+          style: TextStyle(color: theme.lines),
+        ),
         content: const SingleChildScrollView(
           child: Text(
             '• لكل لاعب 12 حجرًا.\n\n'
@@ -457,7 +595,7 @@ class HomePage extends StatelessWidget {
             '• الثبّت هو ثلاثة أحجار على خط أفقي أو عمودي.\n\n'
             '• الحركة إلى نقطة فارغة متصلة فقط.\n\n'
             '• عند تكوين ثبّت جديد، تزال قطعة من الخصم.\n\n'
-            '• يمكن إزالة أي حجر من أحجار الخصم، حتى لو كان داخل ثبّت.\n\n'
+            '• يمكن إزالة أي حجر من أحجار الخصم.\n\n'
             '• الفوز بإزالة جميع أحجار الخصم أو منعه من الحركة.',
             style: TextStyle(height: 1.6),
           ),
@@ -479,6 +617,7 @@ class HomePage extends StatelessWidget {
 
 class GamePage extends StatefulWidget {
   final BoardTheme theme;
+  final Color appBackground;
   final bool computerMode;
   final int difficulty;
   final VoidCallback sound;
@@ -487,6 +626,7 @@ class GamePage extends StatefulWidget {
   const GamePage({
     super.key,
     required this.theme,
+    required this.appBackground,
     required this.computerMode,
     required this.difficulty,
     required this.sound,
@@ -546,6 +686,7 @@ class _GamePageState extends State<GamePage> {
   int? winner;
   int? firstMill;
   int? initialFirstRemover;
+  int? hintDestination;
 
   bool initialRemovalPhase = false;
   bool firstInitialRemovalDone = false;
@@ -553,7 +694,6 @@ class _GamePageState extends State<GamePage> {
   bool showHint = false;
   bool replayMode = false;
 
-  // مؤثر تكوين الطاحونة
   bool millCelebration = false;
   List<int> highlightedMill = [];
   Timer? millTimer;
@@ -566,10 +706,14 @@ class _GamePageState extends State<GamePage> {
 
   String status = '';
 
-  int get playerCount => board.where((v) => v == 1).length;
-  int get computerCount => board.where((v) => v == 2).length;
+  int get playerCount =>
+      board.where((v) => v == 1).length;
 
-  String playerName(int p) => p == 1 ? 'الأبيض' : 'الأسود';
+  int get computerCount =>
+      board.where((v) => v == 2).length;
+
+  String playerName(int p) =>
+      p == 1 ? 'الأبيض' : 'الأسود';
 
   @override
   void initState() {
@@ -603,11 +747,17 @@ class _GamePageState extends State<GamePage> {
 
     mills = _createMills();
 
-    clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && !paused && winner == null && !replayMode) {
-        setState(() => seconds++);
-      }
-    });
+    clock = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) {
+        if (mounted &&
+            !paused &&
+            winner == null &&
+            !replayMode) {
+          setState(() => seconds++);
+        }
+      },
+    );
 
     _scheduleComputer();
   }
@@ -634,19 +784,19 @@ class _GamePageState extends State<GamePage> {
 
   bool hasMill(int index, int p) {
     return mills.any(
-      (m) => m.contains(index) && m.every((i) => board[i] == p),
+      (m) => m.contains(index) &&
+          m.every((i) => board[i] == p),
     );
   }
 
   bool formsMill(int index, int p) {
-    return mills.any(
-      (m) => m.contains(index) && m.every((i) => board[i] == p),
-    );
+    return hasMill(index, p);
   }
 
   List<int>? _getMill(int index, int p) {
     for (final m in mills) {
-      if (m.contains(index) && m.every((i) => board[i] == p)) {
+      if (m.contains(index) &&
+          m.every((i) => board[i] == p)) {
         return m;
       }
     }
@@ -667,18 +817,22 @@ class _GamePageState extends State<GamePage> {
     widget.sound();
     widget.vibrate();
 
-    millTimer = Timer(const Duration(milliseconds: 1700), () {
-      if (!mounted) return;
-      setState(() {
-        millCelebration = false;
-        highlightedMill.clear();
-      });
-    });
+    millTimer = Timer(
+      const Duration(milliseconds: 1200),
+      () {
+        if (!mounted) return;
+        setState(() {
+          millCelebration = false;
+          highlightedMill.clear();
+        });
+      },
+    );
   }
 
   bool hasMove(int p) {
     for (int i = 0; i < 24; i++) {
-      if (board[i] == p && near[i].any((n) => board[n] == 0)) {
+      if (board[i] == p &&
+          near[i].any((n) => board[n] == 0)) {
         return true;
       }
     }
@@ -686,7 +840,9 @@ class _GamePageState extends State<GamePage> {
   }
 
   List<int> legalDestinations(int from) {
-    return near[from].where((i) => board[i] == 0).toList();
+    return near[from]
+        .where((i) => board[i] == 0)
+        .toList();
   }
 
   void _saveHistory() {
@@ -704,10 +860,18 @@ class _GamePageState extends State<GamePage> {
       return;
     }
 
-    aiTimer = Timer(const Duration(milliseconds: 650), () {
-      if (!mounted || paused || turn != 2 || winner != null) return;
-      _computerMove();
-    });
+    aiTimer = Timer(
+      const Duration(milliseconds: 650),
+      () {
+        if (!mounted ||
+            paused ||
+            turn != 2 ||
+            winner != null) {
+          return;
+        }
+        _computerMove();
+      },
+    );
   }
 
   void _computerMove() {
@@ -886,7 +1050,8 @@ class _GamePageState extends State<GamePage> {
       pendingRemoval = initialFirstRemover;
       turn = initialFirstRemover!;
 
-      status = 'انتهى الرص. ${playerName(turn)} يزيل حجرًا من الخصم.';
+      status =
+          'انتهى الرص. ${playerName(turn)} يزيل حجرًا من الخصم.';
       _scheduleComputer();
     } else {
       turn = 3 - turn;
@@ -908,7 +1073,8 @@ class _GamePageState extends State<GamePage> {
         turn = next;
         pendingRemoval = next;
 
-        status = '${playerName(next)} يجب أن يزيل حجرًا من الخصم.';
+        status =
+            '${playerName(next)} يجب أن يزيل حجرًا من الخصم.';
         _scheduleComputer();
         return;
       }
@@ -919,7 +1085,8 @@ class _GamePageState extends State<GamePage> {
 
       turn = initialFirstRemover!;
 
-      if (board.every((v) => v != turn) || !hasMove(turn)) {
+      if (board.every((v) => v != turn) ||
+          !hasMove(turn)) {
         winner = 3 - turn;
         phase = 2;
         status =
@@ -927,7 +1094,8 @@ class _GamePageState extends State<GamePage> {
         return;
       }
 
-      status = 'اكتملت الإزالتان. دور ${playerName(turn)} للتحريك.';
+      status =
+          'اكتملت الإزالتان. دور ${playerName(turn)} للتحريك.';
       _scheduleComputer();
       return;
     }
@@ -963,6 +1131,9 @@ class _GamePageState extends State<GamePage> {
 
   void _endTurn() {
     turn = 3 - turn;
+    selected = null;
+    showHint = false;
+    hintDestination = null;
     _checkNextTurn();
     _scheduleComputer();
   }
@@ -980,11 +1151,12 @@ class _GamePageState extends State<GamePage> {
     if (!hasMove(turn)) {
       winner = 3 - turn;
       phase = 2;
-      status = 'فاز ${playerName(winner!)}! لا توجد حركات متاحة.';
+      status =
+          'فاز ${playerName(winner!)}! لا توجد حركات متاحة.';
       return;
     }
 
-    status = 'دور ${playerName(turn)}: حرّك حجرًا';
+    status = 'دور ${playerName(turn)}: اسحب حجرًا';
   }
 
   void _placeStone(int index) {
@@ -1020,11 +1192,15 @@ class _GamePageState extends State<GamePage> {
       board[from] = 0;
       board[to] = turn;
       selected = null;
+      showHint = false;
+      hintDestination = null;
+
       _saveHistory();
 
       if (hasMill(to, turn)) {
         pendingRemoval = turn;
-        status = 'ثبّت! اختر حجرًا من ${playerName(3 - turn)} لإزالته.';
+        status =
+            'ثبّت! اختر حجرًا من ${playerName(3 - turn)} لإزالته.';
         _celebrateMill(to, turn);
       } else {
         _endTurn();
@@ -1039,57 +1215,35 @@ class _GamePageState extends State<GamePage> {
     if (paused || winner != null || replayMode) return;
     if (widget.computerMode && turn == 2) return;
 
-    widget.sound();
-    widget.vibrate();
-
     if (pendingRemoval != null) {
+      widget.sound();
+      widget.vibrate();
       _removeStone(index);
       return;
     }
 
     if (phase == 0) {
-      if (board[index] == 0) _placeStone(index);
-      return;
-    }
+      widget.sound();
+      widget.vibrate();
 
-    if (phase == 1) {
-      if (selected == null) {
-        if (board[index] == turn) {
-          setState(() {
-            selected = index;
-            status = 'اختر نقطة فارغة متصلة لتحريك الحجر.';
-          });
-        }
-      } else if (board[index] == turn) {
-        setState(() => selected = index);
-      } else if (board[index] == 0) {
-        _moveStone(selected!, index);
-      } else {
-        setState(() {
-          selected = null;
-          status = 'اختر حجرًا من أحجارك.';
-        });
+      if (board[index] == 0) {
+        _placeStone(index);
       }
     }
+
+    // في مرحلة التحريك: السحب فقط.
   }
 
   void _dragMove(int from, int to) {
     if (paused || winner != null || replayMode) return;
     if (widget.computerMode && turn == 2) return;
+    if (pendingRemoval != null) return;
+    if (phase != 1) return;
+    if (board[from] != turn) return;
+    if (board[to] != 0) return;
+    if (!near[from].contains(to)) return;
 
-    if (pendingRemoval != null) {
-      _removeStone(to);
-      return;
-    }
-
-    if (phase == 0) {
-      if (board[from] == 0) _placeStone(from);
-      return;
-    }
-
-    if (phase == 1 && board[from] == turn) {
-      _moveStone(from, to);
-    }
+    _moveStone(from, to);
   }
 
   void _restart() {
@@ -1118,6 +1272,7 @@ class _GamePageState extends State<GamePage> {
       firstInitialRemovalDone = false;
 
       showHint = false;
+      hintDestination = null;
       replayMode = false;
       replayIndex = 0;
       seconds = 0;
@@ -1134,8 +1289,10 @@ class _GamePageState extends State<GamePage> {
   void _hint() {
     if (!widget.computerMode) return;
     if (winner != null || turn != 1 || paused) return;
+    if (pendingRemoval != null) return;
 
     int? best;
+    int? fromBest;
 
     if (phase == 0) {
       for (int i = 0; i < 24; i++) {
@@ -1174,6 +1331,7 @@ class _GamePageState extends State<GamePage> {
 
           if (makes) {
             best = n;
+            fromBest = i;
             break;
           }
         }
@@ -1183,24 +1341,28 @@ class _GamePageState extends State<GamePage> {
 
       if (best == null) {
         for (int i = 0; i < 24; i++) {
-          if (board[i] == 1) {
-            final destinations = legalDestinations(i);
+          if (board[i] != 1) continue;
 
-            if (destinations.isNotEmpty) {
-              best = destinations.first;
-              break;
-            }
+          final destinations = legalDestinations(i);
+
+          if (destinations.isNotEmpty) {
+            best = destinations.first;
+            fromBest = i;
+            break;
           }
         }
       }
     }
 
     setState(() {
-      selected = best;
+      selected = fromBest;
+      hintDestination = best;
       showHint = best != null;
 
       if (best != null) {
-        status = 'التلميح: النقطة المضيئة اقتراح لحركتك.';
+        status = phase == 0
+            ? 'التلميح: النقطة المضيئة اقتراح لمكان الحجر.'
+            : 'التلميح: اسحب الحجر إلى النقطة المضيئة.';
       } else {
         status = 'لا توجد حركة مقترحة.';
       }
@@ -1208,9 +1370,13 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _pause() {
+    if (winner != null || replayMode) return;
+
     setState(() {
       paused = !paused;
-      status = paused ? 'اللعبة متوقفة مؤقتًا' : 'تم استئناف اللعب';
+      status = paused
+          ? 'اللعبة متوقفة مؤقتًا'
+          : 'تم استئناف اللعب';
     });
 
     aiTimer?.cancel();
@@ -1236,12 +1402,14 @@ class _GamePageState extends State<GamePage> {
   void _replayStep(int step) {
     if (history.isEmpty) return;
 
-    final next = (replayIndex + step).clamp(0, history.length - 1);
+    final next =
+        (replayIndex + step).clamp(0, history.length - 1);
 
     setState(() {
       replayIndex = next;
       board = List<int>.from(history[next]);
-      status = 'الحركة ${replayIndex + 1} من ${history.length}';
+      status =
+          'الحركة ${replayIndex + 1} من ${history.length}';
     });
   }
 
@@ -1268,7 +1436,7 @@ class _GamePageState extends State<GamePage> {
     final t = widget.theme;
 
     return Scaffold(
-      backgroundColor: t.background,
+      backgroundColor: widget.appBackground,
       appBar: AppBar(
         backgroundColor: t.wood,
         foregroundColor: t.lines,
@@ -1280,7 +1448,9 @@ class _GamePageState extends State<GamePage> {
         actions: [
           IconButton(
             tooltip: 'إيقاف مؤقت',
-            icon: Icon(paused ? Icons.play_arrow : Icons.pause),
+            icon: Icon(
+              paused ? Icons.play_arrow : Icons.pause,
+            ),
             onPressed: _pause,
           ),
         ],
@@ -1288,21 +1458,28 @@ class _GamePageState extends State<GamePage> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final availableWidth = constraints.maxWidth - 32;
-            final availableHeight = constraints.maxHeight;
+            final availableWidth =
+                math.max(0.0, constraints.maxWidth - 32);
+
+            final availableHeight =
+                math.max(0.0, constraints.maxHeight);
 
             final boardSize = math.min(
               availableWidth,
               availableHeight * .66,
-            ).clamp(180.0, 600.0);
+            ).clamp(
+              0.0,
+              600.0,
+            );
 
             return Column(
               children: [
                 const SizedBox(height: 8),
 
-                // اللاعب الأسود في الأعلى
                 _playerPanel(
-                  label: widget.computerMode ? 'الكمبيوتر' : 'الأسود',
+                  label: widget.computerMode
+                      ? 'الكمبيوتر'
+                      : 'الأسود',
                   count: computerCount,
                   placed: blackPlaced,
                   player: 2,
@@ -1335,6 +1512,7 @@ class _GamePageState extends State<GamePage> {
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
+                            color: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 3),
@@ -1350,7 +1528,6 @@ class _GamePageState extends State<GamePage> {
                   ),
                 ),
 
-                // اللوحة المربعة مع هوامش واضحة
                 Expanded(
                   child: Center(
                     child: SizedBox(
@@ -1361,7 +1538,6 @@ class _GamePageState extends State<GamePage> {
                   ),
                 ),
 
-                // اللاعب الأبيض في الأسفل
                 _playerPanel(
                   label: 'الأبيض',
                   count: playerCount,
@@ -1378,7 +1554,17 @@ class _GamePageState extends State<GamePage> {
                         onPressed: () => _replayStep(-1),
                         icon: const Icon(Icons.skip_previous),
                       ),
-                      Text('${replayIndex + 1} / ${history.length}'),
+                      Text(
+                        '${replayIndex + 1} / ${history.length}',
+                        style: TextStyle(
+                          color: ThemeData.estimateBrightnessForColor(
+                            widget.appBackground,
+                          ) ==
+                                  Brightness.dark
+                              ? Colors.white
+                              : Colors.black,
+                        ),
+                      ),
                       IconButton(
                         onPressed: () => _replayStep(1),
                         icon: const Icon(Icons.skip_next),
@@ -1447,8 +1633,12 @@ class _GamePageState extends State<GamePage> {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapDown: (details) {
-            final index = _nearestPoint(details.localPosition, size);
-            if (index != null) _tapNode(index);
+            final index =
+                _nearestPoint(details.localPosition, size);
+
+            if (index != null) {
+              _tapNode(index);
+            }
           },
           child: CustomPaint(
             size: Size(size, size),
@@ -1462,56 +1652,49 @@ class _GamePageState extends State<GamePage> {
           ),
         ),
 
-        for (int i = 0; i < 24; i++) _stoneWidget(i, size),
+        for (int i = 0; i < 24; i++)
+          _stoneWidget(i, size),
 
         if (millCelebration)
-          Positioned.fill(
+          Positioned(
+            top: 8,
+            left: 0,
+            right: 0,
             child: IgnorePointer(
               child: Center(
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: .65, end: 1),
-                  duration: const Duration(milliseconds: 350),
-                  builder: (context, value, child) {
-                    return Transform.scale(
-                      scale: value,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 22,
-                          vertical: 13,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xff321b0b).withOpacity(.94),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xffffd36b),
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xffffcf54)
-                                  .withOpacity(.6),
-                              blurRadius: 25,
-                              spreadRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: const Text(
-                          'طاحونة مكتملة!',
-                          style: TextStyle(
-                            color: Color(0xffffdc83),
-                            fontSize: 21,
-                            fontWeight: FontWeight.bold,
-                            shadows: [
-                              Shadow(
-                                color: Colors.orange,
-                                blurRadius: 12,
-                              ),
-                            ],
-                          ),
-                        ),
+                child: AnimatedOpacity(
+                  opacity: millCelebration ? 1 : 0,
+                  duration: const Duration(milliseconds: 250),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xff321b0b)
+                          .withOpacity(.88),
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                        color: const Color(0xffffd36b)
+                            .withOpacity(.75),
                       ),
-                    );
-                  },
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xffffcf54)
+                              .withOpacity(.18),
+                          blurRadius: 12,
+                        ),
+                      ],
+                    ),
+                    child: const Text(
+                      'ثبّت!',
+                      style: TextStyle(
+                        color: Color(0xffffdc83),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1528,8 +1711,7 @@ class _GamePageState extends State<GamePage> {
     final t = widget.theme;
     final value = board[i];
 
-    final isSelected = selected == i;
-    final isHint = showHint && selected == i;
+    final isHint = showHint && hintDestination == i;
     final isMill = highlightedMill.contains(i);
 
     final isLegal = selected != null &&
@@ -1553,8 +1735,6 @@ class _GamePageState extends State<GamePage> {
       height: stoneSize,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-
-        // الكرات البيضاء والسوداء
         gradient: value == 1
             ? const RadialGradient(
                 center: Alignment(-.35, -.4),
@@ -1580,35 +1760,32 @@ class _GamePageState extends State<GamePage> {
                     stops: [0, .22, .65, 1],
                   )
                 : null,
-
         color: value == 0
             ? (isLegal || isHint
                 ? t.accent.withOpacity(.8)
-                : const Color(0xff3c2418)) 
+                : const Color(0xff3c2418))
             : null,
-
         border: Border.all(
           color: isMill
               ? const Color(0xffffe27a)
-              : isSelected || isHint
-                  ? Colors.cyanAccent
+              : isHint
+                  ? Colors.greenAccent
                   : value == 0
                       ? const Color(0xff9b6745)
                       : value == 1
                           ? const Color(0xffeeeeee)
                           : const Color(0xff555555),
-          width: isMill || isSelected || isHint ? 3 : 1.2,
+          width: isMill || isHint ? 2.5 : 1.2,
         ),
-
         boxShadow: [
           BoxShadow(
             color: isMill
-                ? const Color(0xffffd34e).withOpacity(.95)
-                : isSelected || isHint
-                    ? Colors.cyanAccent.withOpacity(.8)
-                    : Colors.black.withOpacity(.55),
-            blurRadius: isMill || isSelected || isHint ? 17 : 7,
-            spreadRadius: isMill || isSelected || isHint ? 3 : 1,
+                ? const Color(0xffffd34e).withOpacity(.45)
+                : isHint
+                    ? Colors.greenAccent.withOpacity(.7)
+                    : Colors.black.withOpacity(.4),
+            blurRadius: isMill || isHint ? 11 : 7,
+            spreadRadius: isMill || isHint ? 2 : 1,
             offset: const Offset(1, 3),
           ),
         ],
@@ -1641,9 +1818,20 @@ class _GamePageState extends State<GamePage> {
       top: points[i].dy * size - stoneSize / 2,
       child: DragTarget<int>(
         onWillAcceptWithDetails: (details) {
-          return details.data != i &&
+          final from = details.data;
+
+          return !paused &&
+              !replayMode &&
+              winner == null &&
+              pendingRemoval == null &&
+              phase == 1 &&
+              from != i &&
+              from >= 0 &&
+              from < 24 &&
+              board[from] == turn &&
               board[i] == 0 &&
-              near[details.data].contains(i);
+              near[from].contains(i) &&
+              !(widget.computerMode && turn == 2);
         },
         onAcceptWithDetails: (details) {
           _dragMove(details.data, i);
@@ -1661,11 +1849,17 @@ class _GamePageState extends State<GamePage> {
               ),
             ),
             childWhenDragging: Opacity(
-              opacity: .25,
+              opacity: .2,
               child: stone,
             ),
             child: GestureDetector(
-              onTap: () => _tapNode(i),
+              onTap: () {
+                if (pendingRemoval != null) {
+                  _tapNode(i);
+                } else if (phase == 0) {
+                  _tapNode(i);
+                }
+              },
               child: stone,
             ),
           );
@@ -1709,8 +1903,14 @@ class _GamePageState extends State<GamePage> {
     final t = widget.theme;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      margin: const EdgeInsets.symmetric(
+        horizontal: 18,
+        vertical: 3,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 7,
+      ),
       decoration: BoxDecoration(
         color: t.wood,
         borderRadius: BorderRadius.circular(13),
@@ -1819,11 +2019,14 @@ class _GamePageState extends State<GamePage> {
     return OutlinedButton.icon(
       onPressed: action,
       icon: Icon(icon, size: 17),
-      label: Text(title, style: const TextStyle(fontSize: 12)),
+      label: Text(
+        title,
+        style: const TextStyle(fontSize: 12),
+      ),
       style: OutlinedButton.styleFrom(
-        foregroundColor: widget.theme.lines,
+        foregroundColor: widget.theme.accent,
         side: BorderSide(
-          color: widget.theme.lines.withOpacity(.6),
+          color: widget.theme.accent.withOpacity(.6),
         ),
         padding: const EdgeInsets.symmetric(
           horizontal: 9,
@@ -1865,7 +2068,7 @@ class BoardPainter extends CustomPainter {
         const Radius.circular(12),
       ),
       Paint()
-        ..color = Colors.black.withOpacity(.55)
+        ..color = Colors.black.withOpacity(.35)
         ..maskFilter = const MaskFilter.blur(
           BlurStyle.normal,
           12,
@@ -1920,7 +2123,10 @@ class BoardPainter extends CustomPainter {
 
       canvas.drawLine(
         Offset(size.width * .08, y),
-        Offset(size.width * .92, y + size.height * .003),
+        Offset(
+          size.width * .92,
+          y + size.height * .003,
+        ),
         fineGrain,
       );
     }
@@ -1988,7 +2194,10 @@ class BoardPainter extends CustomPainter {
               Color(0xff8b6745),
             ],
           ).createShader(
-            Rect.fromCircle(center: center, radius: radius),
+            Rect.fromCircle(
+              center: center,
+              radius: radius,
+            ),
           ),
       );
 
@@ -1996,20 +2205,22 @@ class BoardPainter extends CustomPainter {
         center.translate(0, -radius * .15),
         radius * .7,
         Paint()
-          ..color = const Color(0xff170e09).withOpacity(.45),
+          ..color = const Color(0xff170e09)
+              .withOpacity(.45),
       );
 
       canvas.drawCircle(
         center,
         radius,
         Paint()
-          ..color = const Color(0xffe3c69b).withOpacity(.5)
+          ..color = const Color(0xffe3c69b)
+              .withOpacity(.5)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1,
       );
     }
 
-    // إضاءة خط الطاحونة
+    // إضاءة خط الثبّت
     if (millCelebration && highlightedMill.length == 3) {
       final a = Offset(
         points[highlightedMill[0]].dx * size.width,
@@ -2022,19 +2233,19 @@ class BoardPainter extends CustomPainter {
       );
 
       final glow = Paint()
-        ..color = const Color(0xffffd54f).withOpacity(.85)
-        ..strokeWidth = size.width * .025
+        ..color = const Color(0xffffd54f).withOpacity(.35)
+        ..strokeWidth = size.width * .018
         ..strokeCap = StrokeCap.round
         ..maskFilter = const MaskFilter.blur(
           BlurStyle.normal,
-          9,
+          7,
         );
 
       canvas.drawLine(a, b, glow);
 
       final bright = Paint()
-        ..color = const Color(0xffffed9b)
-        ..strokeWidth = size.width * .007
+        ..color = const Color(0xffffed9b).withOpacity(.8)
+        ..strokeWidth = size.width * .004
         ..strokeCap = StrokeCap.round;
 
       canvas.drawLine(a, b, bright);
@@ -2057,6 +2268,9 @@ class BoardPainter extends CustomPainter {
   bool shouldRepaint(covariant BoardPainter oldDelegate) {
     return oldDelegate.theme != theme ||
         oldDelegate.millCelebration != millCelebration ||
-        oldDelegate.highlightedMill != highlightedMill;
+        !listEquals(
+          oldDelegate.highlightedMill,
+          highlightedMill,
+        );
   }
 }

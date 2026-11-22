@@ -61,6 +61,11 @@ class _GamePageState extends State<GamePage> {
   int? firstMill;
   int? winner;
 
+  // الإزالتان الإجباريتان بعد انتهاء الرص
+  bool initialRemovalPhase = false;
+  bool firstInitialRemovalDone = false;
+  int? initialFirstRemover;
+
   String status = 'دور اللاعب الأحمر: ضع حجرًا';
 
   @override
@@ -148,11 +153,15 @@ class _GamePageState extends State<GamePage> {
 
         if (redPlaced == 12 && whitePlaced == 12) {
           phase = 1;
-          pendingRemoval = firstMill ?? starter;
+          initialRemovalPhase = true;
+          firstInitialRemovalDone = false;
 
-          status = firstMill == null
-              ? 'انتهى الرص. أولوية الإزالة للاعب البادئ (${name(starter)}).'
-              : 'انتهى الرص. أولوية الإزالة للاعب ${name(firstMill!)}.';
+          initialFirstRemover = firstMill ?? starter;
+          pendingRemoval = initialFirstRemover;
+          turn = initialFirstRemover!;
+
+          status =
+              'انتهى الرص. اللاعب ${name(turn)} له الأولوية. اختر حجرًا من الخصم لإزالته.';
         } else {
           turn = 3 - turn;
           status = 'دور اللاعب ${name(turn)}: ضع حجرًا';
@@ -172,7 +181,8 @@ class _GamePageState extends State<GamePage> {
 
           if (hasMill(i, turn)) {
             pendingRemoval = turn;
-            status = 'ثبّت! اختر حجرًا من اللاعب ${name(3 - turn)} لإزالته.';
+            status =
+                'ثبّت! اختر حجرًا من اللاعب ${name(3 - turn)} لإزالته.';
           } else {
             _endTurn();
           }
@@ -186,9 +196,40 @@ class _GamePageState extends State<GamePage> {
 
   void _remove(int i) {
     final remover = pendingRemoval!;
+
     board[i] = 0;
     pendingRemoval = null;
 
+    // الإزالتان الإجباريتان بعد انتهاء الرص
+    if (initialRemovalPhase) {
+      if (!firstInitialRemovalDone) {
+        firstInitialRemovalDone = true;
+
+        final secondRemover = 3 - remover;
+        turn = secondRemover;
+        pendingRemoval = secondRemover;
+
+        status =
+            'تمت الإزالة الأولى. الآن اللاعب ${name(secondRemover)} يجب أن يزيل حجرًا من الخصم.';
+
+        return;
+      }
+
+      // تمت الإزالة الثانية، تبدأ مرحلة التحريك
+      initialRemovalPhase = false;
+      firstInitialRemovalDone = false;
+      pendingRemoval = null;
+
+      turn = initialFirstRemover!;
+      selected = null;
+
+      status =
+          'اكتملت الإزالتان! الآن دور اللاعب ${name(turn)} لتحريك حجر.';
+
+      return;
+    }
+
+    // إزالة حجر أثناء مرحلة التحريك
     if (count(3 - remover) == 0) {
       winner = remover;
       phase = 2;
@@ -196,27 +237,30 @@ class _GamePageState extends State<GamePage> {
       return;
     }
 
-    turn = remover;
-    _endTurn(changeTurn: false);
+    turn = 3 - remover;
+    _checkNextTurn();
   }
 
-  void _endTurn({bool changeTurn = true}) {
-    if (changeTurn) turn = 3 - turn;
+  void _endTurn() {
+    turn = 3 - turn;
+    _checkNextTurn();
+  }
 
+  void _checkNextTurn() {
     selected = null;
-    final opp = 3 - turn;
 
-    if (count(opp) == 0) {
-      winner = turn;
+    if (count(turn) == 0) {
+      winner = 3 - turn;
       phase = 2;
-      status = 'فاز اللاعب ${name(turn)}!';
+      status = 'فاز اللاعب ${name(winner!)}!';
       return;
     }
 
-    if (!hasMove(opp)) {
-      winner = turn;
+    if (!hasMove(turn)) {
+      winner = 3 - turn;
       phase = 2;
-      status = 'فاز اللاعب ${name(turn)}! الخصم لا يملك حركة متاحة.';
+      status =
+          'فاز اللاعب ${name(winner!)}! اللاعب ${name(turn)} لا يملك حركة متاحة.';
       return;
     }
 
@@ -235,6 +279,11 @@ class _GamePageState extends State<GamePage> {
       pendingRemoval = null;
       firstMill = null;
       winner = null;
+
+      initialRemovalPhase = false;
+      firstInitialRemovalDone = false;
+      initialFirstRemover = null;
+
       status = 'مباراة جديدة. يبدأ اللاعب ${name(turn)}.';
     });
   }
@@ -374,6 +423,7 @@ class _GamePageState extends State<GamePage> {
                           title: const Text('قواعد ثبّت'),
                           content: const Text(
                             'ضع 12 حجرًا لكل لاعب. لا إزالة أثناء الرص. '
+                            'بعد انتهاء الرص، يزيل كل لاعب حجرًا واحدًا حسب الأولوية. '
                             'الثبّت ثلاثة أحجار على خط أفقي أو عمودي. '
                             'تحرّك إلى نقطة فارغة متصلة فقط. '
                             'الفوز بإزالة جميع أحجار الخصم أو بمنعه من الحركة.',

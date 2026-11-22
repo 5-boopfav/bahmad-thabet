@@ -231,7 +231,7 @@ class HomePage extends StatelessWidget {
                 context,
                 'قواعد اللعبة',
                 Icons.menu_book,
-                () => _rules(context),
+                () => rules(context),
               ),
               const SizedBox(height: 13),
               _button(
@@ -336,9 +336,9 @@ class HomePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 15),
-              _difficultyTile(ctx, 'سهل', 'مناسب للمبتدئين', 1),
-              _difficultyTile(ctx, 'متوسط', 'تحدٍّ متوازن', 2),
-              _difficultyTile(ctx, 'صعب', 'خصم أكثر ذكاءً', 3),
+              _difficultyTile(ctx, context, 'سهل', 'مناسب للمبتدئين', 1),
+              _difficultyTile(ctx, context, 'متوسط', 'تحدٍّ متوازن', 2),
+              _difficultyTile(ctx, context, 'صعب', 'خصم أكثر ذكاءً', 3),
             ],
           ),
         ),
@@ -347,7 +347,8 @@ class HomePage extends StatelessWidget {
   }
 
   Widget _difficultyTile(
-    BuildContext ctx,
+    BuildContext sheetContext,
+    BuildContext homeContext,
     String title,
     String subtitle,
     int level,
@@ -357,8 +358,8 @@ class HomePage extends StatelessWidget {
       title: Text(title),
       subtitle: Text(subtitle),
       onTap: () {
-        Navigator.pop(ctx);
-        _start(context, true, level);
+        Navigator.pop(sheetContext);
+        _start(homeContext, true, level);
       },
     );
   }
@@ -439,10 +440,10 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  void _rules(BuildContext context) {
+  void rules(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xff2b2018),
         title: Text('قواعد ثبّت', style: TextStyle(color: theme.lines)),
         content: const SingleChildScrollView(
@@ -451,6 +452,9 @@ class HomePage extends StatelessWidget {
             '• يتناوب اللاعبان في وضع الأحجار.\n\n'
             '• لا توجد إزالة أثناء الرص.\n\n'
             '• بعد انتهاء الرص، يزيل كل لاعب حجرًا واحدًا حسب الأولوية.\n\n'
+            '• بعد الإزالة الأولى لا نفحص الفوز بسبب انعدام الحركات.\n\n'
+            '• بعد الإزالة الثانية نفحص حركات اللاعب الأول.\n\n'
+            '• إذا لم يجد اللاعب الأول أي حركة، يفوز اللاعب الثاني.\n\n'
             '• الثبّت هو ثلاثة أحجار على خط أفقي أو عمودي.\n\n'
             '• الحركة إلى نقطة فارغة متصلة فقط.\n\n'
             '• عند تكوين ثبّت جديد، تزال قطعة من الخصم.\n\n'
@@ -461,7 +465,7 @@ class HomePage extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('إغلاق'),
           ),
         ],
@@ -638,8 +642,7 @@ class _GamePageState extends State<GamePage> {
 
   bool hasMove(int p) {
     for (int i = 0; i < 24; i++) {
-      if (board[i] == p &&
-          near[i].any((n) => board[n] == 0)) {
+      if (board[i] == p && near[i].any((n) => board[n] == 0)) {
         return true;
       }
     }
@@ -704,6 +707,7 @@ class _GamePageState extends State<GamePage> {
         board[i] = 2;
         final makes = formsMill(i, 2);
         board[i] = 0;
+
         if (makes) {
           chosen = i;
           break;
@@ -715,6 +719,7 @@ class _GamePageState extends State<GamePage> {
           board[i] = 1;
           final blocks = formsMill(i, 1);
           board[i] = 0;
+
           if (blocks) {
             chosen = i;
             break;
@@ -852,27 +857,49 @@ class _GamePageState extends State<GamePage> {
     }
   }
 
+  // ======================================================
+  // قاعدة الإزالتين الأولى والثانية
+  // ======================================================
+
   void _afterRemoval(int remover) {
     if (initialRemovalPhase) {
+      // الإزالة الأولى:
+      // لا نفحص الفوز بسبب انعدام الحركات.
       if (!firstInitialRemovalDone) {
         firstInitialRemovalDone = true;
+
         final next = 3 - remover;
         turn = next;
         pendingRemoval = next;
+
         status = '${playerName(next)} يجب أن يزيل حجرًا من الخصم.';
         _scheduleComputer();
         return;
       }
 
+      // الإزالة الثانية اكتملت.
       initialRemovalPhase = false;
       firstInitialRemovalDone = false;
       pendingRemoval = null;
+
+      // يبدأ التحريك اللاعب الذي قام بالإزالة الأولى.
       turn = initialFirstRemover!;
+
+      // نفحص اللاعب الأول بعد اكتمال الإزالتين فقط.
+      if (board.every((v) => v != turn) || !hasMove(turn)) {
+        winner = 3 - turn;
+        phase = 2;
+        status =
+            'فاز ${playerName(winner!)}! اللاعب الأول لا يملك حركة متاحة.';
+        return;
+      }
+
       status = 'اكتملت الإزالتان. دور ${playerName(turn)} للتحريك.';
       _scheduleComputer();
       return;
     }
 
+    // الإزالات العادية أثناء مرحلة الحركة.
     if (board.every((v) => v != 3 - remover)) {
       winner = remover;
       phase = 2;
@@ -1086,9 +1113,14 @@ class _GamePageState extends State<GamePage> {
         }
       }
 
-      best ??= List.generate(24, (i) => i)
-          .where((i) => board[i] == 0)
-          .firstOrNull;
+      if (best == null) {
+        for (int i = 0; i < 24; i++) {
+          if (board[i] == 0) {
+            best = i;
+            break;
+          }
+        }
+      }
     } else if (phase == 1) {
       for (int i = 0; i < 24; i++) {
         if (board[i] != 1) continue;
@@ -1115,6 +1147,7 @@ class _GamePageState extends State<GamePage> {
         for (int i = 0; i < 24; i++) {
           if (board[i] == 1) {
             final destinations = legalDestinations(i);
+
             if (destinations.isNotEmpty) {
               best = destinations.first;
               break;
@@ -1127,6 +1160,7 @@ class _GamePageState extends State<GamePage> {
     setState(() {
       selected = best;
       showHint = best != null;
+
       if (best != null) {
         status = 'التلميح: النقطة المضيئة اقتراح لحركتك.';
       } else {
@@ -1141,8 +1175,11 @@ class _GamePageState extends State<GamePage> {
       status = paused ? 'اللعبة متوقفة مؤقتًا' : 'تم استئناف اللعب';
     });
 
-    if (!paused) _scheduleComputer();
     aiTimer?.cancel();
+
+    if (!paused) {
+      _scheduleComputer();
+    }
   }
 
   void _replay() {
@@ -1270,6 +1307,7 @@ class _GamePageState extends State<GamePage> {
                               details.localPosition,
                               size,
                             );
+
                             if (index != null) _tapNode(index);
                           },
                           child: Stack(
@@ -1409,9 +1447,7 @@ class _GamePageState extends State<GamePage> {
             ? (isLegal || isHint ? t.accent : t.points)
             : null,
         border: Border.all(
-          color: isSelected || isHint
-              ? Colors.cyanAccent
-              : t.lines,
+          color: isSelected || isHint ? Colors.cyanAccent : t.lines,
           width: isSelected || isHint ? 3 : 1.5,
         ),
         boxShadow: [
@@ -1604,6 +1640,7 @@ class BoardPainter extends CustomPainter {
 
     for (int i = 1; i < 15; i++) {
       final y = size.height * i / 15;
+
       canvas.drawLine(
         Offset(size.width * .04, y),
         Offset(size.width * .96, y),

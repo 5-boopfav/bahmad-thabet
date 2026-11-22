@@ -3,13 +3,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+
 void main() {
   runApp(const ThabetApp());
 }
-
-// ======================================================
-// الثيمات
-// ======================================================
 
 class BoardTheme {
   final String name;
@@ -72,10 +69,6 @@ const List<BoardTheme> boardThemes = [
   ),
 ];
 
-// ======================================================
-// خلفيات التطبيق
-// ======================================================
-
 const List<Color> appBackgrounds = [
   Color(0xfff5f5f5),
   Color(0xffe8e8e8),
@@ -83,10 +76,6 @@ const List<Color> appBackgrounds = [
   Color(0xff34271f),
   Color(0xffe8edf4),
 ];
-
-// ======================================================
-// التطبيق
-// ======================================================
 
 class ThabetApp extends StatefulWidget {
   const ThabetApp({super.key});
@@ -103,7 +92,6 @@ class _ThabetAppState extends State<ThabetApp> {
   bool vibrationEnabled = true;
 
   BoardTheme get theme => boardThemes[themeIndex];
-
   Color get appBackground => appBackgrounds[backgroundIndex];
 
   void sound() {
@@ -124,12 +112,12 @@ class _ThabetAppState extends State<ThabetApp> {
       debugShowCheckedModeBanner: false,
       title: 'ثبّت',
       theme: ThemeData(
-        brightness: Brightness.light,
+        brightness: ThemeData.estimateBrightnessForColor(appBackground),
         useMaterial3: true,
         scaffoldBackgroundColor: appBackground,
         colorScheme: ColorScheme.fromSeed(
           seedColor: theme.accent,
-          brightness: Brightness.light,
+          brightness: ThemeData.estimateBrightnessForColor(appBackground),
         ),
       ),
       home: HomePage(
@@ -138,23 +126,17 @@ class _ThabetAppState extends State<ThabetApp> {
         appBackground: appBackground,
         backgroundIndex: backgroundIndex,
         onThemeChanged: (v) => setState(() => themeIndex = v),
-        onBackgroundChanged: (v) =>
-            setState(() => backgroundIndex = v),
+        onBackgroundChanged: (v) => setState(() => backgroundIndex = v),
         soundEnabled: soundEnabled,
         vibrationEnabled: vibrationEnabled,
         onSoundChanged: (v) => setState(() => soundEnabled = v),
-        onVibrationChanged: (v) =>
-            setState(() => vibrationEnabled = v),
+        onVibrationChanged: (v) => setState(() => vibrationEnabled = v),
         sound: sound,
         vibrate: vibrate,
       ),
     );
   }
 }
-
-// ======================================================
-// الشاشة الرئيسية
-// ======================================================
 
 class HomePage extends StatelessWidget {
   final BoardTheme theme;
@@ -212,10 +194,7 @@ class HomePage extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: theme.wood,
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: theme.lines,
-                    width: 2,
-                  ),
+                  border: Border.all(color: theme.lines, width: 2),
                   boxShadow: [
                     BoxShadow(
                       color: theme.accent.withOpacity(.3),
@@ -321,9 +300,7 @@ class HomePage extends StatelessWidget {
               icon: Icon(icon),
               label: Text(
                 title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: theme.accent,
@@ -336,14 +313,9 @@ class HomePage extends StatelessWidget {
           : OutlinedButton.icon(
               onPressed: action,
               icon: Icon(icon, color: theme.accent),
-              label: Text(
-                title,
-                style: TextStyle(color: textColor),
-              ),
+              label: Text(title, style: TextStyle(color: textColor)),
               style: OutlinedButton.styleFrom(
-                side: BorderSide(
-                  color: theme.accent.withOpacity(.5),
-                ),
+                side: BorderSide(color: theme.accent.withOpacity(.5)),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
@@ -352,11 +324,7 @@ class HomePage extends StatelessWidget {
     );
   }
 
-  void _start(
-    BuildContext context,
-    bool computer,
-    int difficulty,
-  ) {
+  void _start(BuildContext context, bool computer, int difficulty) {
     sound();
     vibrate();
 
@@ -394,27 +362,9 @@ class HomePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 15),
-              _difficultyTile(
-                ctx,
-                context,
-                'سهل',
-                'مناسب للمبتدئين',
-                1,
-              ),
-              _difficultyTile(
-                ctx,
-                context,
-                'متوسط',
-                'تحدٍّ متوازن',
-                2,
-              ),
-              _difficultyTile(
-                ctx,
-                context,
-                'صعب',
-                'خصم أكثر ذكاءً',
-                3,
-              ),
+              _difficultyTile(ctx, context, 'سهل', 'مناسب للمبتدئين', 1),
+              _difficultyTile(ctx, context, 'متوسط', 'تحدٍّ متوازن', 2),
+              _difficultyTile(ctx, context, 'صعب', 'خصم أكثر ذكاءً', 3),
             ],
           ),
         ),
@@ -463,17 +413,11 @@ class HomePage extends StatelessWidget {
               ListTile(
                 leading: CircleAvatar(
                   backgroundColor: boardThemes[i].wood,
-                  child: Icon(
-                    Icons.palette,
-                    color: boardThemes[i].lines,
-                  ),
+                  child: Icon(Icons.palette, color: boardThemes[i].lines),
                 ),
                 title: Text(boardThemes[i].name),
                 trailing: themeIndex == i
-                    ? Icon(
-                        Icons.check_circle,
-                        color: theme.lines,
-                      )
+                    ? Icon(Icons.check_circle, color: theme.lines)
                     : null,
                 onTap: () {
                   onThemeChanged(i);
@@ -526,9 +470,7 @@ class HomePage extends StatelessWidget {
                   alignment: Alignment.centerRight,
                   child: Text(
                     'خلفية التطبيق',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -557,10 +499,7 @@ class HomePage extends StatelessWidget {
                           ),
                         ),
                         child: backgroundIndex == i
-                            ? const Icon(
-                                Icons.check,
-                                color: Colors.green,
-                              )
+                            ? const Icon(Icons.check, color: Colors.green)
                             : null,
                       ),
                     ),
@@ -579,10 +518,7 @@ class HomePage extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xff2b2018),
-        title: Text(
-          'قواعد ثبّت',
-          style: TextStyle(color: theme.lines),
-        ),
+        title: Text('قواعد ثبّت', style: TextStyle(color: theme.lines)),
         content: const SingleChildScrollView(
           child: Text(
             '• لكل لاعب 12 حجرًا.\n\n'
@@ -611,10 +547,6 @@ class HomePage extends StatelessWidget {
   }
 }
 
-// ======================================================
-// شاشة اللعبة
-// ======================================================
-
 class GamePage extends StatefulWidget {
   final BoardTheme theme;
   final Color appBackground;
@@ -640,31 +572,32 @@ class GamePage extends StatefulWidget {
 class _GamePageState extends State<GamePage> {
   static int nextStarter = 1;
 
+  // إحداثيات مطابقة لتصميم HTML المعتمد.
   final List<Offset> points = const [
-    Offset(0, 0),
-    Offset(.5, 0),
-    Offset(1, 0),
-    Offset(1, .5),
-    Offset(1, 1),
-    Offset(.5, 1),
-    Offset(0, 1),
-    Offset(0, .5),
-    Offset(.17, .17),
-    Offset(.5, .17),
-    Offset(.83, .17),
-    Offset(.83, .5),
-    Offset(.83, .83),
-    Offset(.5, .83),
-    Offset(.17, .83),
-    Offset(.17, .5),
-    Offset(.34, .34),
-    Offset(.5, .34),
-    Offset(.66, .34),
-    Offset(.66, .5),
-    Offset(.66, .66),
-    Offset(.5, .66),
-    Offset(.34, .66),
-    Offset(.34, .5),
+    Offset(65 / 600, 65 / 600),
+    Offset(300 / 600, 65 / 600),
+    Offset(535 / 600, 65 / 600),
+    Offset(535 / 600, 300 / 600),
+    Offset(535 / 600, 535 / 600),
+    Offset(300 / 600, 535 / 600),
+    Offset(65 / 600, 535 / 600),
+    Offset(65 / 600, 300 / 600),
+    Offset(145 / 600, 145 / 600),
+    Offset(300 / 600, 145 / 600),
+    Offset(455 / 600, 145 / 600),
+    Offset(455 / 600, 300 / 600),
+    Offset(455 / 600, 455 / 600),
+    Offset(300 / 600, 455 / 600),
+    Offset(145 / 600, 455 / 600),
+    Offset(145 / 600, 300 / 600),
+    Offset(225 / 600, 225 / 600),
+    Offset(300 / 600, 225 / 600),
+    Offset(375 / 600, 225 / 600),
+    Offset(375 / 600, 300 / 600),
+    Offset(375 / 600, 375 / 600),
+    Offset(300 / 600, 375 / 600),
+    Offset(225 / 600, 375 / 600),
+    Offset(225 / 600, 300 / 600),
   ];
 
   late final List<List<int>> edges;
@@ -706,14 +639,10 @@ class _GamePageState extends State<GamePage> {
 
   String status = '';
 
-  int get playerCount =>
-      board.where((v) => v == 1).length;
+  int get playerCount => board.where((v) => v == 1).length;
+  int get computerCount => board.where((v) => v == 2).length;
 
-  int get computerCount =>
-      board.where((v) => v == 2).length;
-
-  String playerName(int p) =>
-      p == 1 ? 'الأبيض' : 'الأسود';
+  String playerName(int p) => p == 1 ? 'الأبيض' : 'الأسود';
 
   @override
   void initState() {
@@ -721,7 +650,6 @@ class _GamePageState extends State<GamePage> {
 
     starter = nextStarter;
     turn = starter;
-
     status = 'دور ${playerName(turn)}: ضع حجرًا';
 
     edges = [];
@@ -747,17 +675,11 @@ class _GamePageState extends State<GamePage> {
 
     mills = _createMills();
 
-    clock = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) {
-        if (mounted &&
-            !paused &&
-            winner == null &&
-            !replayMode) {
-          setState(() => seconds++);
-        }
-      },
-    );
+    clock = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && !paused && winner == null && !replayMode) {
+        setState(() => seconds++);
+      }
+    });
 
     _scheduleComputer();
   }
@@ -784,19 +706,15 @@ class _GamePageState extends State<GamePage> {
 
   bool hasMill(int index, int p) {
     return mills.any(
-      (m) => m.contains(index) &&
-          m.every((i) => board[i] == p),
+      (m) => m.contains(index) && m.every((i) => board[i] == p),
     );
   }
 
-  bool formsMill(int index, int p) {
-    return hasMill(index, p);
-  }
+  bool formsMill(int index, int p) => hasMill(index, p);
 
   List<int>? _getMill(int index, int p) {
     for (final m in mills) {
-      if (m.contains(index) &&
-          m.every((i) => board[i] == p)) {
+      if (m.contains(index) && m.every((i) => board[i] == p)) {
         return m;
       }
     }
@@ -817,22 +735,18 @@ class _GamePageState extends State<GamePage> {
     widget.sound();
     widget.vibrate();
 
-    millTimer = Timer(
-      const Duration(milliseconds: 1200),
-      () {
-        if (!mounted) return;
-        setState(() {
-          millCelebration = false;
-          highlightedMill.clear();
-        });
-      },
-    );
+    millTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (!mounted) return;
+      setState(() {
+        millCelebration = false;
+        highlightedMill.clear();
+      });
+    });
   }
 
   bool hasMove(int p) {
     for (int i = 0; i < 24; i++) {
-      if (board[i] == p &&
-          near[i].any((n) => board[n] == 0)) {
+      if (board[i] == p && near[i].any((n) => board[n] == 0)) {
         return true;
       }
     }
@@ -840,9 +754,7 @@ class _GamePageState extends State<GamePage> {
   }
 
   List<int> legalDestinations(int from) {
-    return near[from]
-        .where((i) => board[i] == 0)
-        .toList();
+    return near[from].where((i) => board[i] == 0).toList();
   }
 
   void _saveHistory() {
@@ -860,18 +772,10 @@ class _GamePageState extends State<GamePage> {
       return;
     }
 
-    aiTimer = Timer(
-      const Duration(milliseconds: 650),
-      () {
-        if (!mounted ||
-            paused ||
-            turn != 2 ||
-            winner != null) {
-          return;
-        }
-        _computerMove();
-      },
-    );
+    aiTimer = Timer(const Duration(milliseconds: 650), () {
+      if (!mounted || paused || turn != 2 || winner != null) return;
+      _computerMove();
+    });
   }
 
   void _computerMove() {
@@ -899,7 +803,6 @@ class _GamePageState extends State<GamePage> {
     if (options.isEmpty) return;
 
     options.shuffle();
-
     int chosen = options.first;
 
     if (widget.difficulty >= 2) {
@@ -963,7 +866,6 @@ class _GamePageState extends State<GamePage> {
     }
 
     moves.shuffle();
-
     List<int> chosen = moves.first;
 
     for (final move in moves) {
@@ -1050,8 +952,7 @@ class _GamePageState extends State<GamePage> {
       pendingRemoval = initialFirstRemover;
       turn = initialFirstRemover!;
 
-      status =
-          'انتهى الرص. ${playerName(turn)} يزيل حجرًا من الخصم.';
+      status = 'انتهى الرص. ${playerName(turn)} يزيل حجرًا من الخصم.';
       _scheduleComputer();
     } else {
       turn = 3 - turn;
@@ -1059,10 +960,6 @@ class _GamePageState extends State<GamePage> {
       _scheduleComputer();
     }
   }
-
-  // ======================================================
-  // قاعدة الإزالتين الأولى والثانية
-  // ======================================================
 
   void _afterRemoval(int remover) {
     if (initialRemovalPhase) {
@@ -1073,8 +970,7 @@ class _GamePageState extends State<GamePage> {
         turn = next;
         pendingRemoval = next;
 
-        status =
-            '${playerName(next)} يجب أن يزيل حجرًا من الخصم.';
+        status = '${playerName(next)} يجب أن يزيل حجرًا من الخصم.';
         _scheduleComputer();
         return;
       }
@@ -1085,17 +981,14 @@ class _GamePageState extends State<GamePage> {
 
       turn = initialFirstRemover!;
 
-      if (board.every((v) => v != turn) ||
-          !hasMove(turn)) {
+      if (board.every((v) => v != turn) || !hasMove(turn)) {
         winner = 3 - turn;
         phase = 2;
-        status =
-            'فاز ${playerName(winner!)}! اللاعب الأول لا يملك حركة متاحة.';
+        status = 'فاز ${playerName(winner!)}! اللاعب الأول لا يملك حركة متاحة.';
         return;
       }
 
-      status =
-          'اكتملت الإزالتان. دور ${playerName(turn)} للتحريك.';
+      status = 'اكتملت الإزالتان. دور ${playerName(turn)} للتحريك.';
       _scheduleComputer();
       return;
     }
@@ -1151,8 +1044,7 @@ class _GamePageState extends State<GamePage> {
     if (!hasMove(turn)) {
       winner = 3 - turn;
       phase = 2;
-      status =
-          'فاز ${playerName(winner!)}! لا توجد حركات متاحة.';
+      status = 'فاز ${playerName(winner!)}! لا توجد حركات متاحة.';
       return;
     }
 
@@ -1199,8 +1091,7 @@ class _GamePageState extends State<GamePage> {
 
       if (hasMill(to, turn)) {
         pendingRemoval = turn;
-        status =
-            'ثبّت! اختر حجرًا من ${playerName(3 - turn)} لإزالته.';
+        status = 'ثبّت! اختر حجرًا من ${playerName(3 - turn)} لإزالته.';
         _celebrateMill(to, turn);
       } else {
         _endTurn();
@@ -1230,17 +1121,13 @@ class _GamePageState extends State<GamePage> {
         _placeStone(index);
       }
     }
-
-    // في مرحلة التحريك: السحب فقط.
   }
 
   void _dragMove(int from, int to) {
     if (paused || winner != null || replayMode) return;
     if (widget.computerMode && turn == 2) return;
-    if (pendingRemoval != null) return;
-    if (phase != 1) return;
-    if (board[from] != turn) return;
-    if (board[to] != 0) return;
+    if (pendingRemoval != null || phase != 1) return;
+    if (board[from] != turn || board[to] != 0) return;
     if (!near[from].contains(to)) return;
 
     _moveStone(from, to);
@@ -1276,6 +1163,7 @@ class _GamePageState extends State<GamePage> {
       replayMode = false;
       replayIndex = 0;
       seconds = 0;
+      paused = false;
 
       millCelebration = false;
       highlightedMill.clear();
@@ -1374,9 +1262,7 @@ class _GamePageState extends State<GamePage> {
 
     setState(() {
       paused = !paused;
-      status = paused
-          ? 'اللعبة متوقفة مؤقتًا'
-          : 'تم استئناف اللعب';
+      status = paused ? 'اللعبة متوقفة مؤقتًا' : 'تم استئناف اللعب';
     });
 
     aiTimer?.cancel();
@@ -1402,14 +1288,12 @@ class _GamePageState extends State<GamePage> {
   void _replayStep(int step) {
     if (history.isEmpty) return;
 
-    final next =
-        (replayIndex + step).clamp(0, history.length - 1);
+    final next = (replayIndex + step).clamp(0, history.length - 1);
 
     setState(() {
       replayIndex = next;
       board = List<int>.from(history[next]);
-      status =
-          'الحركة ${replayIndex + 1} من ${history.length}';
+      status = 'الحركة ${replayIndex + 1} من ${history.length}';
     });
   }
 
@@ -1426,10 +1310,6 @@ class _GamePageState extends State<GamePage> {
     millTimer?.cancel();
     super.dispose();
   }
-
-  // ======================================================
-  // واجهة اللعب
-  // ======================================================
 
   @override
   Widget build(BuildContext context) {
@@ -1448,9 +1328,7 @@ class _GamePageState extends State<GamePage> {
         actions: [
           IconButton(
             tooltip: 'إيقاف مؤقت',
-            icon: Icon(
-              paused ? Icons.play_arrow : Icons.pause,
-            ),
+            icon: Icon(paused ? Icons.play_arrow : Icons.pause),
             onPressed: _pause,
           ),
         ],
@@ -1458,34 +1336,24 @@ class _GamePageState extends State<GamePage> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final availableWidth =
-                math.max(0.0, constraints.maxWidth - 32);
-
-            final availableHeight =
-                math.max(0.0, constraints.maxHeight);
+            final availableWidth = math.max(0.0, constraints.maxWidth - 32);
+            final availableHeight = math.max(0.0, constraints.maxHeight);
 
             final boardSize = math.min(
               availableWidth,
               availableHeight * .66,
-            ).clamp(
-              0.0,
-              600.0,
-            );
+            ).clamp(0.0, 600.0);
 
             return Column(
               children: [
                 const SizedBox(height: 8),
-
                 _playerPanel(
-                  label: widget.computerMode
-                      ? 'الكمبيوتر'
-                      : 'الأسود',
+                  label: widget.computerMode ? 'الكمبيوتر' : 'الأسود',
                   count: computerCount,
                   placed: blackPlaced,
                   player: 2,
                   active: turn == 2,
                 ),
-
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -1500,9 +1368,7 @@ class _GamePageState extends State<GamePage> {
                     decoration: BoxDecoration(
                       color: t.wood,
                       borderRadius: BorderRadius.circular(13),
-                      border: Border.all(
-                        color: t.lines.withOpacity(.65),
-                      ),
+                      border: Border.all(color: t.lines.withOpacity(.65)),
                     ),
                     child: Column(
                       children: [
@@ -1527,7 +1393,6 @@ class _GamePageState extends State<GamePage> {
                     ),
                   ),
                 ),
-
                 Expanded(
                   child: Center(
                     child: SizedBox(
@@ -1537,7 +1402,6 @@ class _GamePageState extends State<GamePage> {
                     ),
                   ),
                 ),
-
                 _playerPanel(
                   label: 'الأبيض',
                   count: playerCount,
@@ -1545,7 +1409,6 @@ class _GamePageState extends State<GamePage> {
                   player: 1,
                   active: turn == 1,
                 ),
-
                 if (replayMode)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1559,8 +1422,7 @@ class _GamePageState extends State<GamePage> {
                         style: TextStyle(
                           color: ThemeData.estimateBrightnessForColor(
                             widget.appBackground,
-                          ) ==
-                                  Brightness.dark
+                          ) == Brightness.dark
                               ? Colors.white
                               : Colors.black,
                         ),
@@ -1580,7 +1442,6 @@ class _GamePageState extends State<GamePage> {
                       ),
                     ],
                   ),
-
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 5, 8, 9),
                   child: Wrap(
@@ -1594,16 +1455,8 @@ class _GamePageState extends State<GamePage> {
                           Icons.lightbulb_outline,
                           _hint,
                         ),
-                      _actionButton(
-                        'إعادة العرض',
-                        Icons.replay,
-                        _replay,
-                      ),
-                      _actionButton(
-                        'مباراة جديدة',
-                        Icons.refresh,
-                        _restart,
-                      ),
+                      _actionButton('إعادة العرض', Icons.replay, _replay),
+                      _actionButton('مباراة جديدة', Icons.refresh, _restart),
                       _actionButton(
                         'الرئيسية',
                         Icons.home,
@@ -1620,10 +1473,6 @@ class _GamePageState extends State<GamePage> {
     );
   }
 
-  // ======================================================
-  // لوحة اللعب
-  // ======================================================
-
   Widget _boardWidget(double size) {
     final t = widget.theme;
 
@@ -1633,9 +1482,7 @@ class _GamePageState extends State<GamePage> {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapDown: (details) {
-            final index =
-                _nearestPoint(details.localPosition, size);
-
+            final index = _nearestPoint(details.localPosition, size);
             if (index != null) {
               _tapNode(index);
             }
@@ -1651,10 +1498,7 @@ class _GamePageState extends State<GamePage> {
             ),
           ),
         ),
-
-        for (int i = 0; i < 24; i++)
-          _stoneWidget(i, size),
-
+        for (int i = 0; i < 24; i++) _stoneWidget(i, size),
         if (millCelebration)
           Positioned(
             top: 8,
@@ -1667,21 +1511,18 @@ class _GamePageState extends State<GamePage> {
                   duration: const Duration(milliseconds: 250),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 7,
+                      horizontal: 15,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xff321b0b)
-                          .withOpacity(.88),
+                      color: const Color(0xff321b0b).withOpacity(.88),
                       borderRadius: BorderRadius.circular(30),
                       border: Border.all(
-                        color: const Color(0xffffd36b)
-                            .withOpacity(.75),
+                        color: const Color(0xffffd36b).withOpacity(.75),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xffffcf54)
-                              .withOpacity(.18),
+                          color: const Color(0xffffcf54).withOpacity(.18),
                           blurRadius: 12,
                         ),
                       ],
@@ -1690,7 +1531,7 @@ class _GamePageState extends State<GamePage> {
                       'ثبّت!',
                       style: TextStyle(
                         color: Color(0xffffdc83),
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1702,10 +1543,6 @@ class _GamePageState extends State<GamePage> {
       ],
     );
   }
-
-  // ======================================================
-  // الأحجار
-  // ======================================================
 
   Widget _stoneWidget(int i, double size) {
     final t = widget.theme;
@@ -1741,29 +1578,29 @@ class _GamePageState extends State<GamePage> {
                 radius: .95,
                 colors: [
                   Color(0xffffffff),
-                  Color(0xfff4f0e8),
-                  Color(0xffc6c6c6),
-                  Color(0xff777777),
+                  Color(0xfff2f2f2),
+                  Color(0xffc4c4c4),
+                  Color(0xff808080),
                 ],
-                stops: [0, .3, .72, 1],
+                stops: [0, .3, .68, 1],
               )
             : value == 2
                 ? const RadialGradient(
                     center: Alignment(-.35, -.4),
                     radius: .95,
                     colors: [
-                      Color(0xffa0a0a0),
-                      Color(0xff454545),
-                      Color(0xff171717),
-                      Color(0xff030303),
+                      Color(0xff757575),
+                      Color(0xff242424),
+                      Color(0xff0a0a0a),
+                      Color(0xff000000),
                     ],
-                    stops: [0, .22, .65, 1],
+                    stops: [0, .22, .55, 1],
                   )
                 : null,
         color: value == 0
             ? (isLegal || isHint
                 ? t.accent.withOpacity(.8)
-                : const Color(0xff3c2418))
+                : const Color(0xff3d2916))
             : null,
         border: Border.all(
           color: isMill
@@ -1771,7 +1608,7 @@ class _GamePageState extends State<GamePage> {
               : isHint
                   ? Colors.greenAccent
                   : value == 0
-                      ? const Color(0xff9b6745)
+                      ? const Color(0xff8c6844)
                       : value == 1
                           ? const Color(0xffeeeeee)
                           : const Color(0xff555555),
@@ -1798,9 +1635,7 @@ class _GamePageState extends State<GamePage> {
                 width: stoneSize * .22,
                 height: stoneSize * .16,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(
-                    value == 1 ? .9 : .35,
-                  ),
+                  color: Colors.white.withOpacity(value == 1 ? .9 : .35),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
@@ -1854,9 +1689,7 @@ class _GamePageState extends State<GamePage> {
             ),
             child: GestureDetector(
               onTap: () {
-                if (pendingRemoval != null) {
-                  _tapNode(i);
-                } else if (phase == 0) {
+                if (pendingRemoval != null || phase == 0) {
                   _tapNode(i);
                 }
               },
@@ -1873,11 +1706,7 @@ class _GamePageState extends State<GamePage> {
     double distance = double.infinity;
 
     for (int i = 0; i < 24; i++) {
-      final target = Offset(
-        points[i].dx * size,
-        points[i].dy * size,
-      );
-
+      final target = Offset(points[i].dx * size, points[i].dy * size);
       final d = (target - pos).distance;
 
       if (d < distance) {
@@ -1889,10 +1718,6 @@ class _GamePageState extends State<GamePage> {
     return distance < size * .09 ? best : null;
   }
 
-  // ======================================================
-  // بطاقة اللاعب
-  // ======================================================
-
   Widget _playerPanel({
     required String label,
     required int count,
@@ -1903,14 +1728,8 @@ class _GamePageState extends State<GamePage> {
     final t = widget.theme;
 
     return Container(
-      margin: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 3,
-      ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 7,
-      ),
+      margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: t.wood,
         borderRadius: BorderRadius.circular(13),
@@ -1963,10 +1782,7 @@ class _GamePageState extends State<GamePage> {
           const SizedBox(width: 4),
           const Text(
             'حجر',
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.white70,
-            ),
+            style: TextStyle(fontSize: 11, color: Colors.white70),
           ),
           if (active) ...[
             const SizedBox(width: 7),
@@ -2011,36 +1827,20 @@ class _GamePageState extends State<GamePage> {
     );
   }
 
-  Widget _actionButton(
-    String title,
-    IconData icon,
-    VoidCallback action,
-  ) {
+  Widget _actionButton(String title, IconData icon, VoidCallback action) {
     return OutlinedButton.icon(
       onPressed: action,
       icon: Icon(icon, size: 17),
-      label: Text(
-        title,
-        style: const TextStyle(fontSize: 12),
-      ),
+      label: Text(title, style: const TextStyle(fontSize: 12)),
       style: OutlinedButton.styleFrom(
         foregroundColor: widget.theme.accent,
-        side: BorderSide(
-          color: widget.theme.accent.withOpacity(.6),
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 9,
-          vertical: 7,
-        ),
+        side: BorderSide(color: widget.theme.accent.withOpacity(.6)),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
         minimumSize: const Size(0, 34),
       ),
     );
   }
 }
-
-// ======================================================
-// رسم اللوحة الخشبية
-// ======================================================
 
 class BoardPainter extends CustomPainter {
   final List<Offset> points;
@@ -2061,22 +1861,21 @@ class BoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
-    // ظل اللوحة الخارجي
+    // ظل اللوحة.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         rect.deflate(2),
-        const Radius.circular(12),
+        const Radius.circular(6),
       ),
       Paint()
-        ..color = Colors.black.withOpacity(.35)
-        ..maskFilter = const MaskFilter.blur(
-          BlurStyle.normal,
-          12,
-        ),
+        ..color = Colors.black.withOpacity(.45)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
     );
 
-    // الخشب الفاتح
-    final wood = Paint()
+    // خلفية الخشب وعروقه.
+    final boardRect = rect.deflate(3);
+
+    final woodPaint = Paint()
       ..shader = const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -2086,77 +1885,56 @@ class BoardPainter extends CustomPainter {
           Color(0xffd9b987),
           Color(0xffb88a57),
         ],
-      ).createShader(rect);
+      ).createShader(boardRect);
 
-    final boardRect = rect.deflate(5);
+    canvas.drawRect(boardRect, woodPaint);
 
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        boardRect,
-        const Radius.circular(10),
-      ),
-      wood,
-    );
+    final grainPaint = Paint()
+      ..color = const Color(0xff8b6038).withOpacity(.28)
+      ..strokeWidth = size.width * .003;
 
-    // عروق الخشب الأفقية
-    final grain = Paint()
-      ..color = const Color(0xff76502e).withOpacity(.17)
-      ..strokeWidth = 1;
-
-    for (int i = 1; i < 24; i++) {
-      final y = size.height * i / 24;
-
+    for (int i = 0; i < 30; i++) {
+      final y = size.height * i / 30;
       canvas.drawLine(
-        Offset(size.width * .025, y),
-        Offset(size.width * .975, y),
-        grain,
+        Offset(size.width * .01, y),
+        Offset(size.width * .99, y),
+        grainPaint,
       );
     }
 
-    // خطوط خشبية دقيقة
     final fineGrain = Paint()
-      ..color = const Color(0xffffe2b0).withOpacity(.18)
-      ..strokeWidth = .7;
+      ..color = const Color(0xffffe2b0).withOpacity(.3)
+      ..strokeWidth = size.width * .002;
 
-    for (int i = 0; i < 18; i++) {
-      final y = size.height * (i + .5) / 18;
-
+    for (int i = 0; i < 20; i++) {
+      final y = size.height * (i + .5) / 20;
       canvas.drawLine(
-        Offset(size.width * .08, y),
-        Offset(
-          size.width * .92,
-          y + size.height * .003,
-        ),
+        Offset(size.width * .04, y),
+        Offset(size.width * .96, y + size.height * .002),
         fineGrain,
       );
     }
 
-    // إطار اللوحة الداكن
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        rect.deflate(4),
-        const Radius.circular(10),
-      ),
+    // الإطار الخارجي الأسود.
+    canvas.drawRect(
+      rect.deflate(size.width * .01),
       Paint()
-        ..color = const Color(0xff21160f)
+        ..color = const Color(0xff141414)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 4,
+        ..strokeWidth = size.width * .02,
     );
 
-    // خطوط المربعات العنابية
+    // الشبكة العنابية.
     final lineGlow = Paint()
-      ..color = const Color(0xff682c31).withOpacity(.18)
+      ..color = const Color(0xff801313).withOpacity(.2)
       ..strokeWidth = size.width * .025
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(
-        BlurStyle.normal,
-        4,
-      );
+      ..strokeCap = StrokeCap.square
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
 
     final boardLines = Paint()
-      ..color = const Color(0xff742f35)
-      ..strokeWidth = size.width * .012
-      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xff801313)
+      ..strokeWidth = size.width * .011
+      ..strokeCap = StrokeCap.square
       ..style = PaintingStyle.stroke;
 
     for (final edge in edges) {
@@ -2174,93 +1952,81 @@ class BoardPainter extends CustomPainter {
       canvas.drawLine(a, b, boardLines);
     }
 
-    // حفر نقاط اللعب
+    // الحفر الدائرية.
     for (final point in points) {
       final center = Offset(
         point.dx * size.width,
         point.dy * size.height,
       );
 
-      final radius = size.width * .025;
+      final radius = size.width * (19 / 600);
+
+      final holePaint = Paint()
+        ..shader = const RadialGradient(
+          center: Alignment(0, .1),
+          radius: .9,
+          colors: [
+            Color(0xff2b1d10),
+            Color(0xff3d2916),
+            Color(0xff24170c),
+            Color(0xff8c6844),
+          ],
+          stops: [0, .65, .88, 1],
+        ).createShader(
+          Rect.fromCircle(center: center, radius: radius),
+        );
+
+      canvas.drawCircle(center, radius, holePaint);
 
       canvas.drawCircle(
         center,
         radius,
         Paint()
-          ..shader = const RadialGradient(
-            colors: [
-              Color(0xff24150d),
-              Color(0xff57351f),
-              Color(0xff8b6745),
-            ],
-          ).createShader(
-            Rect.fromCircle(
-              center: center,
-              radius: radius,
-            ),
-          ),
-      );
-
-      canvas.drawCircle(
-        center.translate(0, -radius * .15),
-        radius * .7,
-        Paint()
-          ..color = const Color(0xff170e09)
-              .withOpacity(.45),
-      );
-
-      canvas.drawCircle(
-        center,
-        radius,
-        Paint()
-          ..color = const Color(0xffe3c69b)
-              .withOpacity(.5)
+          ..color = const Color(0xff52381e)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1,
+          ..strokeWidth = size.width * .0025,
       );
     }
 
-    // إضاءة خط الثبّت
+    // خط ضوئي خفيف عند تكوين ثبّت.
     if (millCelebration && highlightedMill.length == 3) {
       final a = Offset(
-        points[highlightedMill[0]].dx * size.width,
-        points[highlightedMill[0]].dy * size.height,
+        points[highlightedMill.first].dx * size.width,
+        points[highlightedMill.first].dy * size.height,
       );
 
       final b = Offset(
-        points[highlightedMill[2]].dx * size.width,
-        points[highlightedMill[2]].dy * size.height,
+        points[highlightedMill.last].dx * size.width,
+        points[highlightedMill.last].dy * size.height,
       );
 
-      final glow = Paint()
-        ..color = const Color(0xffffd54f).withOpacity(.35)
-        ..strokeWidth = size.width * .018
-        ..strokeCap = StrokeCap.round
-        ..maskFilter = const MaskFilter.blur(
-          BlurStyle.normal,
-          7,
-        );
+      canvas.drawLine(
+        a,
+        b,
+        Paint()
+          ..color = const Color(0xffffd54f).withOpacity(.25)
+          ..strokeWidth = size.width * .025
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+      );
 
-      canvas.drawLine(a, b, glow);
-
-      final bright = Paint()
-        ..color = const Color(0xffffed9b).withOpacity(.8)
-        ..strokeWidth = size.width * .004
-        ..strokeCap = StrokeCap.round;
-
-      canvas.drawLine(a, b, bright);
+      canvas.drawLine(
+        a,
+        b,
+        Paint()
+          ..color = const Color(0xffffed9b).withOpacity(.85)
+          ..strokeWidth = size.width * .004
+          ..strokeCap = StrokeCap.round,
+      );
     }
 
-    // الإطار الداخلي
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        rect.deflate(11),
-        const Radius.circular(7),
-      ),
+    // الإطار الداخلي.
+    canvas.drawRect(
+      rect.deflate(size.width * .018),
       Paint()
         ..color = const Color(0xff6b4428).withOpacity(.35)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1,
+        ..strokeWidth = size.width * .002,
     );
   }
 
@@ -2268,9 +2034,6 @@ class BoardPainter extends CustomPainter {
   bool shouldRepaint(covariant BoardPainter oldDelegate) {
     return oldDelegate.theme != theme ||
         oldDelegate.millCelebration != millCelebration ||
-        !listEquals(
-          oldDelegate.highlightedMill,
-          highlightedMill,
-        );
+        !listEquals(oldDelegate.highlightedMill, highlightedMill);
   }
 }

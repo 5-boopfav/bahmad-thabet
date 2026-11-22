@@ -31,18 +31,32 @@ class GamePage extends StatefulWidget {
 
 class _GamePageState extends State<GamePage> {
   final points = <Offset>[
-    const Offset(0, 0), const Offset(.5, 0),
-    const Offset(1, 0), const Offset(1, .5),
-    const Offset(1, 1), const Offset(.5, 1),
-    const Offset(0, 1), const Offset(0, .5),
-    const Offset(.17, .17), const Offset(.5, .17),
-    const Offset(.83, .17), const Offset(.83, .5),
-    const Offset(.83, .83), const Offset(.5, .83),
-    const Offset(.17, .83), const Offset(.17, .5),
-    const Offset(.34, .34), const Offset(.5, .34),
-    const Offset(.66, .34), const Offset(.66, .5),
-    const Offset(.66, .66), const Offset(.5, .66),
-    const Offset(.34, .66), const Offset(.34, .5),
+    const Offset(0, 0),
+    const Offset(.5, 0),
+    const Offset(1, 0),
+    const Offset(1, .5),
+    const Offset(1, 1),
+    const Offset(.5, 1),
+    const Offset(0, 1),
+    const Offset(0, .5),
+
+    const Offset(.17, .17),
+    const Offset(.5, .17),
+    const Offset(.83, .17),
+    const Offset(.83, .5),
+    const Offset(.83, .83),
+    const Offset(.5, .83),
+    const Offset(.17, .83),
+    const Offset(.17, .5),
+
+    const Offset(.34, .34),
+    const Offset(.5, .34),
+    const Offset(.66, .34),
+    const Offset(.66, .5),
+    const Offset(.66, .66),
+    const Offset(.5, .66),
+    const Offset(.34, .66),
+    const Offset(.34, .5),
   ];
 
   late final List<List<int>> edges;
@@ -61,7 +75,6 @@ class _GamePageState extends State<GamePage> {
   int? firstMill;
   int? winner;
 
-  // الإزالتان الإجباريتان بعد انتهاء الرص
   bool initialRemovalPhase = false;
   bool firstInitialRemovalDone = false;
   int? initialFirstRemover;
@@ -74,14 +87,18 @@ class _GamePageState extends State<GamePage> {
 
     edges = [];
 
+    // ربط نقاط كل مربع
     for (int r = 0; r < 3; r++) {
       int b = r * 8;
+
       for (int i = 0; i < 8; i++) {
         edges.add([b + i, b + (i + 1) % 8]);
       }
     }
 
-    for (int i = 0; i < 8; i++) {
+    // الربط بين المربعات من منتصف الأضلاع فقط
+    // يمنع الحركة القطرية بين الزوايا
+    for (int i in [1, 3, 5, 7]) {
       edges.add([i, 8 + i]);
       edges.add([8 + i, 16 + i]);
     }
@@ -99,6 +116,7 @@ class _GamePageState extends State<GamePage> {
 
     for (int r = 0; r < 3; r++) {
       int b = r * 8;
+
       m.addAll([
         [b, b + 1, b + 2],
         [b + 2, b + 3, b + 4],
@@ -116,14 +134,19 @@ class _GamePageState extends State<GamePage> {
 
   int count(int p) => board.where((v) => v == p).length;
 
-  bool hasMill(int i, int p) =>
-      mills.any((m) => m.contains(i) && m.every((n) => board[n] == p));
+  bool hasMill(int i, int p) {
+    return mills.any(
+      (m) => m.contains(i) && m.every((n) => board[n] == p),
+    );
+  }
 
   String name(int p) => p == 1 ? 'الأحمر' : 'الأبيض';
 
-  bool hasMove(int p) => List.generate(24, (i) => i).any(
-        (i) => board[i] == p && near[i].any((n) => board[n] == 0),
-      );
+  bool hasMove(int p) {
+    return List.generate(24, (i) => i).any(
+      (i) => board[i] == p && near[i].any((n) => board[n] == 0),
+    );
+  }
 
   void tapNode(int i) {
     if (phase == 2) return;
@@ -215,7 +238,7 @@ class _GamePageState extends State<GamePage> {
         return;
       }
 
-      // تمت الإزالة الثانية، تبدأ مرحلة التحريك
+      // بعد الإزالة الثانية تبدأ مرحلة التحريك
       initialRemovalPhase = false;
       firstInitialRemovalDone = false;
       pendingRemoval = null;
@@ -272,9 +295,11 @@ class _GamePageState extends State<GamePage> {
       starter = 3 - starter;
       turn = starter;
       board = List.filled(24, 0);
+
       redPlaced = 0;
       whitePlaced = 0;
       phase = 0;
+
       selected = null;
       pendingRemoval = null;
       firstMill = null;
@@ -304,6 +329,7 @@ class _GamePageState extends State<GamePage> {
         child: Column(
           children: [
             const SizedBox(height: 10),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -311,6 +337,7 @@ class _GamePageState extends State<GamePage> {
                 _player('الأبيض', count(2), 2),
               ],
             ),
+
             Container(
               margin: const EdgeInsets.all(14),
               padding: const EdgeInsets.all(12),
@@ -318,7 +345,9 @@ class _GamePageState extends State<GamePage> {
               decoration: BoxDecoration(
                 color: const Color(0xff24334a),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xffd6a84f)),
+                border: Border.all(
+                  color: const Color(0xffd6a84f),
+                ),
               ),
               child: Text(
                 status,
@@ -329,6 +358,7 @@ class _GamePageState extends State<GamePage> {
                 ),
               ),
             ),
+
             Expanded(
               child: Center(
                 child: AspectRatio(
@@ -341,6 +371,7 @@ class _GamePageState extends State<GamePage> {
                         behavior: HitTestBehavior.opaque,
                         onTapDown: (d) {
                           final pos = d.localPosition;
+
                           int best = 0;
                           double dist = 9999;
 
@@ -349,6 +380,7 @@ class _GamePageState extends State<GamePage> {
                               points[i].dx * s,
                               points[i].dy * s,
                             );
+
                             final x = (q - pos).distance;
 
                             if (x < dist) {
@@ -357,7 +389,9 @@ class _GamePageState extends State<GamePage> {
                             }
                           }
 
-                          if (dist < s * .085) tapNode(best);
+                          if (dist < s * .085) {
+                            tapNode(best);
+                          }
                         },
                         child: Stack(
                           children: [
@@ -365,6 +399,7 @@ class _GamePageState extends State<GamePage> {
                               size: Size(s, s),
                               painter: _BoardPainter(points, edges),
                             ),
+
                             for (int i = 0; i < 24; i++)
                               Positioned(
                                 left: points[i].dx * s - s * .028,
@@ -403,6 +438,7 @@ class _GamePageState extends State<GamePage> {
                 ),
               ),
             ),
+
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
               child: Row(
@@ -414,7 +450,9 @@ class _GamePageState extends State<GamePage> {
                       label: const Text('مباراة جديدة'),
                     ),
                   ),
+
                   const SizedBox(width: 10),
+
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => showDialog(
@@ -422,7 +460,8 @@ class _GamePageState extends State<GamePage> {
                         builder: (_) => AlertDialog(
                           title: const Text('قواعد ثبّت'),
                           content: const Text(
-                            'ضع 12 حجرًا لكل لاعب. لا إزالة أثناء الرص. '
+                            'ضع 12 حجرًا لكل لاعب. '
+                            'لا إزالة أثناء الرص. '
                             'بعد انتهاء الرص، يزيل كل لاعب حجرًا واحدًا حسب الأولوية. '
                             'الثبّت ثلاثة أحجار على خط أفقي أو عمودي. '
                             'تحرّك إلى نقطة فارغة متصلة فقط. '
@@ -457,7 +496,9 @@ class _GamePageState extends State<GamePage> {
         color: const Color(0xff1c2a40),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: p == 1 ? const Color(0xffe53935) : Colors.white70,
+          color: p == 1
+              ? const Color(0xffe53935)
+              : Colors.white70,
         ),
       ),
       child: Row(
@@ -467,14 +508,23 @@ class _GamePageState extends State<GamePage> {
             height: 18,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: p == 1 ? const Color(0xffe53935) : Colors.white,
+              color: p == 1
+                  ? const Color(0xffe53935)
+                  : Colors.white,
             ),
           ),
+
           const SizedBox(width: 8),
+
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               Text('الأحجار: $n'),
             ],
           ),
@@ -501,7 +551,10 @@ class _BoardPainter extends CustomPainter {
       ),
       Paint()
         ..shader = const LinearGradient(
-          colors: [Color(0xff264b42), Color(0xff17352f)],
+          colors: [
+            Color(0xff264b42),
+            Color(0xff17352f),
+          ],
         ).createShader(r),
     );
 
@@ -512,8 +565,14 @@ class _BoardPainter extends CustomPainter {
 
     for (final x in e) {
       c.drawLine(
-        Offset(p[x[0]].dx * s.width, p[x[0]].dy * s.height),
-        Offset(p[x[1]].dx * s.width, p[x[1]].dy * s.height),
+        Offset(
+          p[x[0]].dx * s.width,
+          p[x[0]].dy * s.height,
+        ),
+        Offset(
+          p[x[1]].dx * s.width,
+          p[x[1]].dy * s.height,
+        ),
         line,
       );
     }

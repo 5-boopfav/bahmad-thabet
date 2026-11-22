@@ -211,7 +211,6 @@ class HomePage extends StatelessWidget {
                 style: TextStyle(fontSize: 16, color: Colors.white70),
               ),
               const SizedBox(height: 45),
-
               _button(
                 context,
                 'العب ضد الكمبيوتر',
@@ -554,6 +553,11 @@ class _GamePageState extends State<GamePage> {
   bool showHint = false;
   bool replayMode = false;
 
+  // مؤثر تكوين الطاحونة
+  bool millCelebration = false;
+  List<int> highlightedMill = [];
+  Timer? millTimer;
+
   int replayIndex = 0;
   int seconds = 0;
 
@@ -638,6 +642,38 @@ class _GamePageState extends State<GamePage> {
     return mills.any(
       (m) => m.contains(index) && m.every((i) => board[i] == p),
     );
+  }
+
+  List<int>? _getMill(int index, int p) {
+    for (final m in mills) {
+      if (m.contains(index) && m.every((i) => board[i] == p)) {
+        return m;
+      }
+    }
+    return null;
+  }
+
+  void _celebrateMill(int index, int player) {
+    final formed = _getMill(index, player);
+    if (formed == null) return;
+
+    millTimer?.cancel();
+
+    setState(() {
+      highlightedMill = List<int>.from(formed);
+      millCelebration = true;
+    });
+
+    widget.sound();
+    widget.vibrate();
+
+    millTimer = Timer(const Duration(milliseconds: 1700), () {
+      if (!mounted) return;
+      setState(() {
+        millCelebration = false;
+        highlightedMill.clear();
+      });
+    });
   }
 
   bool hasMove(int p) {
@@ -732,8 +768,9 @@ class _GamePageState extends State<GamePage> {
       board[chosen] = 2;
       blackPlaced++;
 
-      if (hasMill(chosen, 2) && firstMill == null) {
-        firstMill = 2;
+      if (hasMill(chosen, 2)) {
+        if (firstMill == null) firstMill = 2;
+        _celebrateMill(chosen, 2);
       }
 
       _saveHistory();
@@ -801,6 +838,7 @@ class _GamePageState extends State<GamePage> {
       if (hasMill(chosen[1], 2)) {
         pendingRemoval = 2;
         status = 'الكمبيوتر كوّن ثبّت!';
+        _celebrateMill(chosen[1], 2);
       } else {
         _endTurn();
       }
@@ -863,8 +901,6 @@ class _GamePageState extends State<GamePage> {
 
   void _afterRemoval(int remover) {
     if (initialRemovalPhase) {
-      // الإزالة الأولى:
-      // لا نفحص الفوز بسبب انعدام الحركات.
       if (!firstInitialRemovalDone) {
         firstInitialRemovalDone = true;
 
@@ -877,15 +913,12 @@ class _GamePageState extends State<GamePage> {
         return;
       }
 
-      // الإزالة الثانية اكتملت.
       initialRemovalPhase = false;
       firstInitialRemovalDone = false;
       pendingRemoval = null;
 
-      // يبدأ التحريك اللاعب الذي قام بالإزالة الأولى.
       turn = initialFirstRemover!;
 
-      // نفحص اللاعب الأول بعد اكتمال الإزالتين فقط.
       if (board.every((v) => v != turn) || !hasMove(turn)) {
         winner = 3 - turn;
         phase = 2;
@@ -899,7 +932,6 @@ class _GamePageState extends State<GamePage> {
       return;
     }
 
-    // الإزالات العادية أثناء مرحلة الحركة.
     if (board.every((v) => v != 3 - remover)) {
       winner = remover;
       phase = 2;
@@ -967,8 +999,9 @@ class _GamePageState extends State<GamePage> {
         blackPlaced++;
       }
 
-      if (hasMill(index, turn) && firstMill == null) {
-        firstMill = turn;
+      if (hasMill(index, turn)) {
+        if (firstMill == null) firstMill = turn;
+        _celebrateMill(index, turn);
       }
 
       _saveHistory();
@@ -992,6 +1025,7 @@ class _GamePageState extends State<GamePage> {
       if (hasMill(to, turn)) {
         pendingRemoval = turn;
         status = 'ثبّت! اختر حجرًا من ${playerName(3 - turn)} لإزالته.';
+        _celebrateMill(to, turn);
       } else {
         _endTurn();
       }
@@ -1060,6 +1094,7 @@ class _GamePageState extends State<GamePage> {
 
   void _restart() {
     aiTimer?.cancel();
+    millTimer?.cancel();
 
     setState(() {
       starter = 3 - starter;
@@ -1086,6 +1121,9 @@ class _GamePageState extends State<GamePage> {
       replayMode = false;
       replayIndex = 0;
       seconds = 0;
+
+      millCelebration = false;
+      highlightedMill.clear();
 
       status = 'مباراة جديدة. يبدأ ${playerName(turn)}.';
     });
@@ -1217,8 +1255,13 @@ class _GamePageState extends State<GamePage> {
   void dispose() {
     clock?.cancel();
     aiTimer?.cancel();
+    millTimer?.cancel();
     super.dispose();
   }
+
+  // ======================================================
+  // واجهة اللعب
+  // ======================================================
 
   @override
   Widget build(BuildContext context) {
@@ -1243,158 +1286,243 @@ class _GamePageState extends State<GamePage> {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 8),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = constraints.maxWidth - 32;
+            final availableHeight = constraints.maxHeight;
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            final boardSize = math.min(
+              availableWidth,
+              availableHeight * .66,
+            ).clamp(180.0, 600.0);
+
+            return Column(
               children: [
-                _playerCard('الأبيض', playerCount, 1),
-                _playerCard(
-                  widget.computerMode ? 'الكمبيوتر' : 'الأسود',
-                  computerCount,
-                  2,
-                ),
-              ],
-            ),
+                const SizedBox(height: 8),
 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: t.wood,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: t.lines),
+                // اللاعب الأسود في الأعلى
+                _playerPanel(
+                  label: widget.computerMode ? 'الكمبيوتر' : 'الأسود',
+                  count: computerCount,
+                  placed: blackPlaced,
+                  player: 2,
+                  active: turn == 2,
                 ),
-                child: Column(
-                  children: [
-                    Text(
-                      status,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: t.wood,
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        color: t.lines.withOpacity(.65),
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    Text(
-                      'الوقت: ${_formatTime()}',
-                      style: TextStyle(color: t.lines.withOpacity(.8)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            Expanded(
-              child: Center(
-                child: InteractiveViewer(
-                  minScale: .8,
-                  maxScale: 2.2,
-                  child: AspectRatio(
-                    aspectRatio: 1,
-                    child: LayoutBuilder(
-                      builder: (context, box) {
-                        final size = box.maxWidth;
-
-                        return GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTapDown: (details) {
-                            final index = _nearestPoint(
-                              details.localPosition,
-                              size,
-                            );
-
-                            if (index != null) _tapNode(index);
-                          },
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              CustomPaint(
-                                size: Size(size, size),
-                                painter: BoardPainter(
-                                  points: points,
-                                  edges: edges,
-                                  theme: t,
-                                ),
-                              ),
-
-                              for (int i = 0; i < 24; i++)
-                                _stoneWidget(i, size),
-                            ],
+                    child: Column(
+                      children: [
+                        Text(
+                          status,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
-                        );
-                      },
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'الوقت: ${_formatTime()}',
+                          style: TextStyle(
+                            color: t.lines.withOpacity(.8),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ),
-            ),
 
-            if (replayMode)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: () => _replayStep(-1),
-                    icon: const Icon(Icons.skip_previous),
-                  ),
-                  Text('${replayIndex + 1} / ${history.length}'),
-                  IconButton(
-                    onPressed: () => _replayStep(1),
-                    icon: const Icon(Icons.skip_next),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        replayMode = false;
-                        status = 'تم إغلاق إعادة العرض';
-                      });
-                    },
-                    child: const Text('إغلاق'),
-                  ),
-                ],
-              ),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 5, 10, 12),
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (widget.computerMode && !replayMode)
-                    _actionButton(
-                      'تلميح',
-                      Icons.lightbulb_outline,
-                      _hint,
+                // اللوحة المربعة مع هوامش واضحة
+                Expanded(
+                  child: Center(
+                    child: SizedBox(
+                      width: boardSize,
+                      height: boardSize,
+                      child: _boardWidget(boardSize),
                     ),
-                  _actionButton(
-                    'إعادة العرض',
-                    Icons.replay,
-                    _replay,
                   ),
-                  _actionButton(
-                    'مباراة جديدة',
-                    Icons.refresh,
-                    _restart,
+                ),
+
+                // اللاعب الأبيض في الأسفل
+                _playerPanel(
+                  label: 'الأبيض',
+                  count: playerCount,
+                  placed: whitePlaced,
+                  player: 1,
+                  active: turn == 1,
+                ),
+
+                if (replayMode)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () => _replayStep(-1),
+                        icon: const Icon(Icons.skip_previous),
+                      ),
+                      Text('${replayIndex + 1} / ${history.length}'),
+                      IconButton(
+                        onPressed: () => _replayStep(1),
+                        icon: const Icon(Icons.skip_next),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            replayMode = false;
+                            status = 'تم إغلاق إعادة العرض';
+                          });
+                        },
+                        child: const Text('إغلاق'),
+                      ),
+                    ],
                   ),
-                  _actionButton(
-                    'الرئيسية',
-                    Icons.home,
-                    () => Navigator.pop(context),
+
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 5, 8, 9),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 6,
+                    runSpacing: 3,
+                    children: [
+                      if (widget.computerMode && !replayMode)
+                        _actionButton(
+                          'تلميح',
+                          Icons.lightbulb_outline,
+                          _hint,
+                        ),
+                      _actionButton(
+                        'إعادة العرض',
+                        Icons.replay,
+                        _replay,
+                      ),
+                      _actionButton(
+                        'مباراة جديدة',
+                        Icons.refresh,
+                        _restart,
+                      ),
+                      _actionButton(
+                        'الرئيسية',
+                        Icons.home,
+                        () => Navigator.pop(context),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
+
+  // ======================================================
+  // لوحة اللعب
+  // ======================================================
+
+  Widget _boardWidget(double size) {
+    final t = widget.theme;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (details) {
+            final index = _nearestPoint(details.localPosition, size);
+            if (index != null) _tapNode(index);
+          },
+          child: CustomPaint(
+            size: Size(size, size),
+            painter: BoardPainter(
+              points: points,
+              edges: edges,
+              theme: t,
+              highlightedMill: highlightedMill,
+              millCelebration: millCelebration,
+            ),
+          ),
+        ),
+
+        for (int i = 0; i < 24; i++) _stoneWidget(i, size),
+
+        if (millCelebration)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Center(
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: .65, end: 1),
+                  duration: const Duration(milliseconds: 350),
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 13,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xff321b0b).withOpacity(.94),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xffffd36b),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xffffcf54)
+                                  .withOpacity(.6),
+                              blurRadius: 25,
+                              spreadRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: const Text(
+                          'طاحونة مكتملة!',
+                          style: TextStyle(
+                            color: Color(0xffffdc83),
+                            fontSize: 21,
+                            fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(
+                                color: Colors.orange,
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ======================================================
+  // الأحجار
+  // ======================================================
 
   Widget _stoneWidget(int i, double size) {
     final t = widget.theme;
@@ -1402,6 +1530,7 @@ class _GamePageState extends State<GamePage> {
 
     final isSelected = selected == i;
     final isHint = showHint && selected == i;
+    final isMill = highlightedMill.contains(i);
 
     final isLegal = selected != null &&
         legalDestinations(selected!).contains(i) &&
@@ -1416,71 +1545,100 @@ class _GamePageState extends State<GamePage> {
         board[i] == turn &&
         !(widget.computerMode && turn == 2);
 
+    final stoneSize = size * .064;
+
     final stone = AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      width: size * .064,
-      height: size * .064,
+      duration: const Duration(milliseconds: 220),
+      width: stoneSize,
+      height: stoneSize,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
+
+        // الكرات البيضاء والسوداء
         gradient: value == 1
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+            ? const RadialGradient(
+                center: Alignment(-.35, -.4),
+                radius: .95,
                 colors: [
                   Color(0xffffffff),
-                  Color(0xffd9d9d9),
-                  Color(0xff8c8c8c),
+                  Color(0xfff4f0e8),
+                  Color(0xffc6c6c6),
+                  Color(0xff777777),
                 ],
+                stops: [0, .3, .72, 1],
               )
             : value == 2
-                ? const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                ? const RadialGradient(
+                    center: Alignment(-.35, -.4),
+                    radius: .95,
                     colors: [
-                      Color(0xff777777),
-                      Color(0xff252525),
-                      Color(0xff080808),
+                      Color(0xffa0a0a0),
+                      Color(0xff454545),
+                      Color(0xff171717),
+                      Color(0xff030303),
                     ],
+                    stops: [0, .22, .65, 1],
                   )
                 : null,
+
         color: value == 0
-            ? (isLegal || isHint ? t.accent : t.points)
+            ? (isLegal || isHint
+                ? t.accent.withOpacity(.8)
+                : const Color(0xff3c2418)) 
             : null,
+
         border: Border.all(
-          color: isSelected || isHint ? Colors.cyanAccent : t.lines,
-          width: isSelected || isHint ? 3 : 1.5,
+          color: isMill
+              ? const Color(0xffffe27a)
+              : isSelected || isHint
+                  ? Colors.cyanAccent
+                  : value == 0
+                      ? const Color(0xff9b6745)
+                      : value == 1
+                          ? const Color(0xffeeeeee)
+                          : const Color(0xff555555),
+          width: isMill || isSelected || isHint ? 3 : 1.2,
         ),
+
         boxShadow: [
           BoxShadow(
-            color: isSelected || isHint
-                ? Colors.cyanAccent.withOpacity(.8)
-                : value == 0
-                    ? t.accent.withOpacity(.25)
-                    : Colors.black.withOpacity(.5),
-            blurRadius: isSelected || isHint ? 16 : 7,
-            spreadRadius: isSelected || isHint ? 2 : 0,
+            color: isMill
+                ? const Color(0xffffd34e).withOpacity(.95)
+                : isSelected || isHint
+                    ? Colors.cyanAccent.withOpacity(.8)
+                    : Colors.black.withOpacity(.55),
+            blurRadius: isMill || isSelected || isHint ? 17 : 7,
+            spreadRadius: isMill || isSelected || isHint ? 3 : 1,
+            offset: const Offset(1, 3),
           ),
         ],
       ),
       child: value == 0
           ? null
-          : Center(
+          : Align(
+              alignment: const Alignment(-.35, -.4),
               child: Container(
-                width: size * .018,
-                height: size * .018,
+                width: stoneSize * .22,
+                height: stoneSize * .16,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: value == 1
-                      ? Colors.white.withOpacity(.8)
-                      : Colors.white.withOpacity(.18),
+                  color: Colors.white.withOpacity(
+                    value == 1 ? .9 : .35,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.white.withOpacity(.25),
+                      blurRadius: 5,
+                    ),
+                  ],
                 ),
               ),
             ),
     );
 
     return Positioned(
-      left: points[i].dx * size - size * .032,
-      top: points[i].dy * size - size * .032,
+      left: points[i].dx * size - stoneSize / 2,
+      top: points[i].dy * size - stoneSize / 2,
       child: DragTarget<int>(
         onWillAcceptWithDetails: (details) {
           return details.data != i &&
@@ -1497,8 +1655,8 @@ class _GamePageState extends State<GamePage> {
             feedback: Material(
               color: Colors.transparent,
               child: SizedBox(
-                width: size * .08,
-                height: size * .08,
+                width: stoneSize,
+                height: stoneSize,
                 child: stone,
               ),
             ),
@@ -1537,40 +1695,116 @@ class _GamePageState extends State<GamePage> {
     return distance < size * .09 ? best : null;
   }
 
-  Widget _playerCard(String label, int count, int p) {
+  // ======================================================
+  // بطاقة اللاعب
+  // ======================================================
+
+  Widget _playerPanel({
+    required String label,
+    required int count,
+    required int placed,
+    required int player,
+    required bool active,
+  }) {
     final t = widget.theme;
 
     return Container(
-      width: 145,
-      padding: const EdgeInsets.all(9),
+      margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: t.wood,
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: t.lines.withOpacity(.7)),
+        border: Border.all(
+          color: active ? t.accent : t.lines.withOpacity(.35),
+          width: active ? 2 : 1,
+        ),
+        boxShadow: active
+            ? [
+                BoxShadow(
+                  color: t.accent.withOpacity(.18),
+                  blurRadius: 12,
+                ),
+              ]
+            : [],
       ),
       child: Row(
         children: [
-          Container(
-            width: 19,
-            height: 19,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: p == 1
-                  ? const LinearGradient(
-                      colors: [Colors.white, Color(0xff888888)],
-                    )
-                  : const LinearGradient(
-                      colors: [Color(0xff777777), Colors.black],
-                    ),
+          _playerBall(player, 22),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: active ? t.accent : Colors.white,
+                  ),
+                ),
+                Text(
+                  'الأحجار المتبقية: ${12 - placed}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text('الأحجار: $count'),
-            ],
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.bold,
+              color: t.lines,
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Text(
+            'حجر',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.white70,
+            ),
+          ),
+          if (active) ...[
+            const SizedBox(width: 7),
+            Icon(Icons.circle, color: t.accent, size: 9),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _playerBall(int player, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: player == 1
+            ? const RadialGradient(
+                center: Alignment(-.35, -.4),
+                colors: [
+                  Colors.white,
+                  Color(0xffdedede),
+                  Color(0xff777777),
+                ],
+              )
+            : const RadialGradient(
+                center: Alignment(-.35, -.4),
+                colors: [
+                  Color(0xff888888),
+                  Color(0xff333333),
+                  Colors.black,
+                ],
+              ),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 5,
+            offset: Offset(1, 2),
           ),
         ],
       ),
@@ -1584,80 +1818,140 @@ class _GamePageState extends State<GamePage> {
   ) {
     return OutlinedButton.icon(
       onPressed: action,
-      icon: Icon(icon, size: 18),
-      label: Text(title),
+      icon: Icon(icon, size: 17),
+      label: Text(title, style: const TextStyle(fontSize: 12)),
       style: OutlinedButton.styleFrom(
         foregroundColor: widget.theme.lines,
-        side: BorderSide(color: widget.theme.lines.withOpacity(.6)),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        side: BorderSide(
+          color: widget.theme.lines.withOpacity(.6),
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 9,
+          vertical: 7,
+        ),
+        minimumSize: const Size(0, 34),
       ),
     );
   }
 }
 
 // ======================================================
-// رسم اللوحة
+// رسم اللوحة الخشبية
 // ======================================================
 
 class BoardPainter extends CustomPainter {
   final List<Offset> points;
   final List<List<int>> edges;
   final BoardTheme theme;
+  final List<int> highlightedMill;
+  final bool millCelebration;
 
   BoardPainter({
     required this.points,
     required this.edges,
     required this.theme,
+    required this.highlightedMill,
+    required this.millCelebration,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
+    // ظل اللوحة الخارجي
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        rect.deflate(2),
+        const Radius.circular(12),
+      ),
+      Paint()
+        ..color = Colors.black.withOpacity(.55)
+        ..maskFilter = const MaskFilter.blur(
+          BlurStyle.normal,
+          12,
+        ),
+    );
+
+    // الخشب الفاتح
     final wood = Paint()
-      ..shader = LinearGradient(
+      ..shader = const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          theme.wood,
-          theme.wood.withOpacity(.8),
-          theme.background,
-          theme.wood,
+          Color(0xffd5b17c),
+          Color(0xffbd9360),
+          Color(0xffd9b987),
+          Color(0xffb88a57),
         ],
       ).createShader(rect);
 
+    final boardRect = rect.deflate(5);
+
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        rect.deflate(3),
-        const Radius.circular(22),
+        boardRect,
+        const Radius.circular(10),
       ),
       wood,
     );
 
+    // عروق الخشب الأفقية
     final grain = Paint()
-      ..color = theme.lines.withOpacity(.07)
+      ..color = const Color(0xff76502e).withOpacity(.17)
       ..strokeWidth = 1;
 
-    for (int i = 1; i < 15; i++) {
-      final y = size.height * i / 15;
+    for (int i = 1; i < 24; i++) {
+      final y = size.height * i / 24;
 
       canvas.drawLine(
-        Offset(size.width * .04, y),
-        Offset(size.width * .96, y),
+        Offset(size.width * .025, y),
+        Offset(size.width * .975, y),
         grain,
       );
     }
 
-    final glow = Paint()
-      ..color = theme.accent.withOpacity(.2)
-      ..strokeWidth = size.width * .035
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    // خطوط خشبية دقيقة
+    final fineGrain = Paint()
+      ..color = const Color(0xffffe2b0).withOpacity(.18)
+      ..strokeWidth = .7;
 
-    final line = Paint()
-      ..color = theme.lines
+    for (int i = 0; i < 18; i++) {
+      final y = size.height * (i + .5) / 18;
+
+      canvas.drawLine(
+        Offset(size.width * .08, y),
+        Offset(size.width * .92, y + size.height * .003),
+        fineGrain,
+      );
+    }
+
+    // إطار اللوحة الداكن
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        rect.deflate(4),
+        const Radius.circular(10),
+      ),
+      Paint()
+        ..color = const Color(0xff21160f)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4,
+    );
+
+    // خطوط المربعات العنابية
+    final lineGlow = Paint()
+      ..color = const Color(0xff682c31).withOpacity(.18)
+      ..strokeWidth = size.width * .025
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(
+        BlurStyle.normal,
+        4,
+      );
+
+    final boardLines = Paint()
+      ..color = const Color(0xff742f35)
       ..strokeWidth = size.width * .012
-      ..strokeCap = StrokeCap.round;
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
 
     for (final edge in edges) {
       final a = Offset(
@@ -1670,28 +1964,90 @@ class BoardPainter extends CustomPainter {
         points[edge[1]].dy * size.height,
       );
 
-      canvas.drawLine(a, b, glow);
-      canvas.drawLine(a, b, line);
+      canvas.drawLine(a, b, lineGlow);
+      canvas.drawLine(a, b, boardLines);
     }
 
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        rect.deflate(3),
-        const Radius.circular(22),
-      ),
-      Paint()
-        ..color = theme.accent
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5,
-    );
+    // حفر نقاط اللعب
+    for (final point in points) {
+      final center = Offset(
+        point.dx * size.width,
+        point.dy * size.height,
+      );
 
+      final radius = size.width * .025;
+
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..shader = const RadialGradient(
+            colors: [
+              Color(0xff24150d),
+              Color(0xff57351f),
+              Color(0xff8b6745),
+            ],
+          ).createShader(
+            Rect.fromCircle(center: center, radius: radius),
+          ),
+      );
+
+      canvas.drawCircle(
+        center.translate(0, -radius * .15),
+        radius * .7,
+        Paint()
+          ..color = const Color(0xff170e09).withOpacity(.45),
+      );
+
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()
+          ..color = const Color(0xffe3c69b).withOpacity(.5)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
+
+    // إضاءة خط الطاحونة
+    if (millCelebration && highlightedMill.length == 3) {
+      final a = Offset(
+        points[highlightedMill[0]].dx * size.width,
+        points[highlightedMill[0]].dy * size.height,
+      );
+
+      final b = Offset(
+        points[highlightedMill[2]].dx * size.width,
+        points[highlightedMill[2]].dy * size.height,
+      );
+
+      final glow = Paint()
+        ..color = const Color(0xffffd54f).withOpacity(.85)
+        ..strokeWidth = size.width * .025
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(
+          BlurStyle.normal,
+          9,
+        );
+
+      canvas.drawLine(a, b, glow);
+
+      final bright = Paint()
+        ..color = const Color(0xffffed9b)
+        ..strokeWidth = size.width * .007
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawLine(a, b, bright);
+    }
+
+    // الإطار الداخلي
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        rect.deflate(10),
-        const Radius.circular(17),
+        rect.deflate(11),
+        const Radius.circular(7),
       ),
       Paint()
-        ..color = theme.lines.withOpacity(.25)
+        ..color = const Color(0xff6b4428).withOpacity(.35)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -1699,6 +2055,8 @@ class BoardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BoardPainter oldDelegate) {
-    return oldDelegate.theme != theme;
+    return oldDelegate.theme != theme ||
+        oldDelegate.millCelebration != millCelebration ||
+        oldDelegate.highlightedMill != highlightedMill;
   }
 }

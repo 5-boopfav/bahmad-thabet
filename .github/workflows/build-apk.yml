@@ -52,14 +52,75 @@ jobs:
           make_tone("assets/sounds/remove.wav", [330, 196], 0.12, volume=0.4)
           EOF
 
+      - name: Set App Display Name & Custom Icon
+        run: |
+          python3 - << 'EOF'
+          import os, re, shutil, struct, zlib
+
+          # البحث عن صورة الأيقونة سواء كانت في جذر المستودع أو داخل assets/icon
+          candidates = [
+              "Image_57d593b5.jpg",
+              "assets/icon/Image_57d593b5.jpg",
+          ]
+          src_icon = next((p for p in candidates if os.path.exists(p)), None)
+
+          if src_icon is None:
+              os.makedirs("assets/icon", exist_ok=True)
+              src_icon = "assets/icon/Image_57d593b5.jpg"
+              w, h = 512, 512
+              row = bytes([0]) + bytes([220, 164, 99, 255] * w)
+              raw = row * h
+
+              def png_chunk(tag, data):
+                  crc = zlib.crc32(tag + data) & 0xffffffff
+                  return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", crc)
+
+              ihdr = struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0)
+              idat = zlib.compress(raw, level=6)
+              png_bytes = (
+                  b"\x89PNG\r\n\x1a\n"
+                  + png_chunk(b"IHDR", ihdr)
+                  + png_chunk(b"IDAT", idat)
+                  + png_chunk(b"IEND", b"")
+              )
+              with open(src_icon, "wb") as f:
+                  f.write(png_bytes)
+
+          # نسخ الصورة إلى جميع مجلدات mipmap الخاصة بأندرويد
+          res_dir = "android/app/src/main/res"
+          for folder in [
+              "mipmap-mdpi",
+              "mipmap-hdpi",
+              "mipmap-xhdpi",
+              "mipmap-xxhdpi",
+              "mipmap-xxxhdpi",
+          ]:
+              target_dir = os.path.join(res_dir, folder)
+              os.makedirs(target_dir, exist_ok=True)
+              shutil.copyfile(src_icon, os.path.join(target_dir, "ic_launcher.png"))
+
+          # ضبط اسم التطبيق الظاهر على الشاشة إلى "ثبت"
+          manifest_path = "android/app/src/main/AndroidManifest.xml"
+          if os.path.exists(manifest_path):
+              with open(manifest_path, "r", encoding="utf-8") as f:
+                  content = f.read()
+              content = re.sub(r'android:label="[^"]*"', 'android:label="ثبت"', content)
+              with open(manifest_path, "w", encoding="utf-8") as f:
+                  f.write(content)
+          EOF
+
       - name: Install Dependencies
         run: flutter pub get
 
       - name: Build APK
         run: flutter build apk --release
 
+      - name: Rename APK Output
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Bahmad-Thabet.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: BAHMAD-THABET-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: Bahmad-Thabet-APK
+          path: build/app/outputs/flutter-apk/Bahmad-Thabet.apk

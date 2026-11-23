@@ -689,11 +689,6 @@ class _GamePageState extends State<GamePage>
   int get playerCount => board.where((v) => v == 1).length;
   int get computerCount => board.where((v) => v == 2).length;
 
-  int get whiteRemovedCount =>
-      (whitePlaced - playerCount).clamp(0, 12);
-  int get blackRemovedCount =>
-      (blackPlaced - computerCount).clamp(0, 12);
-
   String playerName(int p) => p == 1 ? 'الأبيض' : 'الأسود';
 
   @override
@@ -746,7 +741,7 @@ class _GamePageState extends State<GamePage>
 
   void _launchStoneFromCenter(int player, int targetIndex) {
     final size = _currentBoardSize;
-    final startOffset = Offset(size * 0.5, size * (player == 1 ? 1.18 : -0.18));
+    final startOffset = Offset(size * 0.5, size * (player == 1 ? 1.12 : -0.12));
     final endOffset = Offset(
       points[targetIndex].dx * size,
       points[targetIndex].dy * size,
@@ -1439,21 +1434,24 @@ class _GamePageState extends State<GamePage>
               final availableWidth = math.max(0.0, constraints.maxWidth - 28);
               final availableHeight = math.max(0.0, constraints.maxHeight);
 
+              // حجم ثابت للوحة يمنع اهتزازها أو تحركها أثناء اللعب.
               final boardSize = math.min(
                 availableWidth,
-                availableHeight * .56,
+                availableHeight * .55,
               ).clamp(0.0, 540.0);
               _currentBoardSize = boardSize;
 
               return Column(
                 children: [
-                  // طابور الكرات السوداء بالأعلى كما في الفيديو.
-                  _stoneQueueRow(
-                    player: 2,
-                    placed: blackPlaced,
-                    removed: whiteRemovedCount,
-                    active: turn == 2,
-                    isTop: true,
+                  // ارتفاع ثابت لطابور الكرات العلوي لضمان عدم اهتزاز اللوحة.
+                  SizedBox(
+                    height: 54,
+                    child: _stoneQueueRow(
+                      player: 2,
+                      placed: blackPlaced,
+                      active: turn == 2,
+                      isTop: true,
+                    ),
                   ),
 
                   // شريط الحالة والوقت بلمسة هادئة.
@@ -1464,7 +1462,7 @@ class _GamePageState extends State<GamePage>
                     ),
                     child: Container(
                       width: double.infinity,
-                      height: 48,
+                      height: 46,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 4,
@@ -1540,13 +1538,15 @@ class _GamePageState extends State<GamePage>
                     ),
                   ),
 
-                  // طابور الكرات البيضاء بالأسفل كما في الفيديو.
-                  _stoneQueueRow(
-                    player: 1,
-                    placed: whitePlaced,
-                    removed: blackRemovedCount,
-                    active: turn == 1,
-                    isTop: false,
+                  // ارتفاع ثابت لطابور الكرات السفلي لضمان عدم اهتزاز اللوحة.
+                  SizedBox(
+                    height: 54,
+                    child: _stoneQueueRow(
+                      player: 1,
+                      placed: whitePlaced,
+                      active: turn == 1,
+                      isTop: false,
+                    ),
                   ),
 
                   if (replayMode)
@@ -1620,77 +1620,41 @@ class _GamePageState extends State<GamePage>
   Widget _stoneQueueRow({
     required int player,
     required int placed,
-    required int removed,
     required bool active,
     required bool isTop,
   }) {
     final remaining = (12 - placed).clamp(0, 12);
     final showReadyCenterBall = active && phase == 0 && remaining > 0;
     final queueCount = showReadyCenterBall ? remaining - 1 : remaining;
-    final opponentPlayer = 3 - player;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // صف الكرات المتبقية في الطابور.
-          Row(
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(
-                  queueCount,
-                  (index) => Padding(
-                    padding: const EdgeInsets.only(right: 2.5),
-                    child: _playerBall(player, 19),
-                  ),
-                ),
-              ),
-              const Spacer(),
-              // الكرات المزالة للخصم تظهر في الجانب المقابل كما في الفيديو.
-              if (removed > 0)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(
-                    removed.clamp(0, 12),
-                    (index) => Padding(
-                      padding: const EdgeInsets.only(left: 2),
-                      child: Opacity(
-                        opacity: 0.85,
-                        child: _playerBall(opponentPlayer, 14),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-
-          // الكرة الجاهزة للخروج من المنتصف نحو اللوحة.
-          if (showReadyCenterBall)
-            Padding(
-              padding: EdgeInsets.only(
-                top: isTop ? 6 : 2,
-                bottom: isTop ? 2 : 6,
-              ),
-              child: AnimatedScale(
-                scale: 1.06,
-                duration: const Duration(milliseconds: 220),
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.white.withOpacity(.45),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  child: _playerBall(player, 28),
+          SizedBox(
+            height: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(
+                queueCount,
+                (index) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2.5),
+                  child: _playerBall(player, 18),
                 ),
               ),
             ),
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 26,
+            child: Center(
+              child: showReadyCenterBall
+                  ? _playerBall(player, 24, floating: true)
+                  : const SizedBox.shrink(),
+            ),
+          ),
         ],
       ),
     );
@@ -1736,11 +1700,16 @@ class _GamePageState extends State<GamePage>
                 _flyingStone!.endOffset,
                 curved,
               )!;
+              final floatLift = math.sin(curved * math.pi) * 6.0;
               return Positioned(
-                left: pos.dx - stoneSize / 2,
-                top: pos.dy - stoneSize / 2,
+                left: pos.dx - (stoneSize * 1.14) / 2,
+                top: pos.dy - (stoneSize * 1.14) / 2 - floatLift,
                 child: IgnorePointer(
-                  child: _playerBall(_flyingStone!.player, stoneSize * 1.08),
+                  child: _playerBall(
+                    _flyingStone!.player,
+                    stoneSize * 1.14,
+                    floating: true,
+                  ),
                 ),
               );
             },
@@ -1817,7 +1786,7 @@ class _GamePageState extends State<GamePage>
     final stoneSize = size * .082;
 
     final stone = AnimatedContainer(
-      duration: const Duration(milliseconds: 260),
+      duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
       width: stoneSize,
       height: stoneSize,
@@ -1921,9 +1890,13 @@ class _GamePageState extends State<GamePage>
             ),
     );
 
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
+    final floatingStone = _playerBall(
+      value,
+      stoneSize * 1.18,
+      floating: true,
+    );
+
+    return Positioned(
       left: points[i].dx * size - stoneSize / 2,
       top: points[i].dy * size - stoneSize / 2,
       child: DragTarget<int>(
@@ -1972,14 +1945,13 @@ class _GamePageState extends State<GamePage>
             maxSimultaneousDrags: canDrag ? 1 : 0,
             feedback: Material(
               color: Colors.transparent,
-              child: SizedBox(
-                width: stoneSize * 1.1,
-                height: stoneSize * 1.1,
-                child: Center(child: stone),
+              child: Transform.translate(
+                offset: const Offset(0, -8),
+                child: floatingStone,
               ),
             ),
             childWhenDragging: Opacity(
-              opacity: .2,
+              opacity: .22,
               child: stone,
             ),
             child: GestureDetector(
@@ -2012,7 +1984,7 @@ class _GamePageState extends State<GamePage>
     return distance < size * .095 ? best : null;
   }
 
-  Widget _playerBall(int player, double size) {
+  Widget _playerBall(int player, double size, {bool floating = false}) {
     return Container(
       width: size,
       height: size,
@@ -2039,13 +2011,14 @@ class _GamePageState extends State<GamePage>
           color: player == 1
               ? const Color(0xffe0e0e0)
               : const Color(0xff3c3d3f),
-          width: 0.8,
+          width: floating ? 1.2 : 0.8,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.45),
-            blurRadius: size * .22,
-            offset: Offset(0, size * .12),
+            color: Colors.black.withOpacity(floating ? .6 : .45),
+            blurRadius: size * (floating ? .42 : .22),
+            spreadRadius: floating ? 1.5 : 0,
+            offset: Offset(0, size * (floating ? .26 : .12)),
           ),
         ],
       ),

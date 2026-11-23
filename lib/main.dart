@@ -34,17 +34,17 @@ enum TurnStage { selectOrPlace, removePiece }
 
 class GameSnapshot {
   final List<int?> board;
-  final int currentPlayer; // 1 = Player (بحمد), 2 = AI (الكمبيوتر)
-  final GamePhase phase;
-  final TurnStage stage;
-  final int p1RemainingToPlace;
-  final int p2RemainingToPlace;
-  final int p1PiecesOnBoard;
-  final int p2PiecesOnBoard;
-  final int? selectedIndex;
-  final String statusText;
-  final int? winner;
-  final Set<int> aiHighlightNodes;
+  int currentPlayer; // 1 = Player (بحمد), 2 = AI (الكمبيوتر)
+  GamePhase phase;
+  TurnStage stage;
+  int p1RemainingToPlace;
+  int p2RemainingToPlace;
+  int p1PiecesOnBoard;
+  int p2PiecesOnBoard;
+  int? selectedIndex;
+  String statusText;
+  int? winner;
+  Set<int> aiHighlightNodes;
 
   GameSnapshot({
     required this.board,
@@ -255,7 +255,7 @@ class ThabetHomeScreen extends StatefulWidget {
 }
 
 class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
-  static const List<List<int>> mills = [
+  static const List<List<int>> thabetLines = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8],
     [9, 10, 11], [12, 13, 14], [15, 16, 17],
     [18, 19, 20], [21, 22, 23],
@@ -326,22 +326,22 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     }
   }
 
-  bool _formsMill(List<int?> board, int pos, int player) {
-    for (final m in mills) {
-      if (m.contains(pos) && m.every((idx) => board[idx] == player)) {
+  bool _formsThabet(List<int?> board, int pos, int player) {
+    for (final line in thabetLines) {
+      if (line.contains(pos) && line.every((idx) => board[idx] == player)) {
         return true;
       }
     }
     return false;
   }
 
-  bool _isPartOfAnyMill(List<int?> board, int pos, int player) {
-    return _formsMill(board, pos, player);
+  bool _isProtectedByThabet(List<int?> board, int pos, int player) {
+    return _formsThabet(board, pos, player);
   }
 
-  bool _allOpponentInMills(List<int?> board, int opponent) {
+  bool _allOpponentProtected(List<int?> board, int opponent) {
     for (int i = 0; i < 24; i++) {
-      if (board[i] == opponent && !_isPartOfAnyMill(board, i, opponent)) {
+      if (board[i] == opponent && !_isProtectedByThabet(board, i, opponent)) {
         return false;
       }
     }
@@ -436,8 +436,8 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         setState(() => next.statusText = 'اختر قطعة للخصم لإزالتها');
         return;
       }
-      if (!_allOpponentInMills(next.board, opponent) && _isPartOfAnyMill(next.board, index, opponent)) {
-        setState(() => next.statusText = 'لا يمكن إزالة قطعة داخل طاحونة مكتملة');
+      if (!_allOpponentProtected(next.board, opponent) && _isProtectedByThabet(next.board, index, opponent)) {
+        setState(() => next.statusText = 'لا يمكن إزالة قطعة محمية بـ «ثبت» مكتمل');
         return;
       }
       _history.add(_state.clone());
@@ -469,9 +469,9 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       }
       _syncCountsAndPhase(next);
 
-      if (_formsMill(next.board, index, player)) {
+      if (_formsThabet(next.board, index, player)) {
         next.stage = TurnStage.removePiece;
-        next.statusText = 'طاحونة! اختر قطعة للخصم لإزالتها';
+        next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
         SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
       } else {
@@ -513,9 +513,9 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       next.selectedIndex = null;
       _syncCountsAndPhase(next);
 
-      if (_formsMill(next.board, index, player)) {
+      if (_formsThabet(next.board, index, player)) {
         next.stage = TurnStage.removePiece;
-        next.statusText = 'طاحونة! اختر قطعة للخصم لإزالتها';
+        next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
         SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
       } else {
@@ -585,8 +585,8 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     next.aiHighlightNodes = highlights;
     _syncCountsAndPhase(next);
 
-    bool madeMill = _formsMill(next.board, bestMove.to, 2);
-    if (madeMill) {
+    bool madeThabet = _formsThabet(next.board, bestMove.to, 2);
+    if (madeThabet) {
       final victim = _chooseBestRemovalTarget(next.board, 1);
       if (victim != null) {
         next.board[victim] = null;
@@ -602,7 +602,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       next.statusText = 'دورك الآن (آخر نقلة للكمبيوتر مميزة)';
     }
 
-    SoundEffects.play(madeMill ? 'mill.wav' : 'place.wav', enabled: widget.soundEnabled);
+    SoundEffects.play(madeThabet ? 'mill.wav' : 'place.wav', enabled: widget.soundEnabled);
     setState(() {
       _state = next;
       _aiThinking = false;
@@ -651,7 +651,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     final b = List<int?>.from(board);
     if (m.from != null) b[m.from!] = null;
     b[m.to] = 2;
-    if (_formsMill(b, m.to, 2)) p += 500;
+    if (_formsThabet(b, m.to, 2)) p += 500;
     p += (adjacent[m.to]?.length ?? 0) * 15;
     return p;
   }
@@ -692,7 +692,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     if (player == 1 && s.p1RemainingToPlace > 0) s.p1RemainingToPlace -= 1;
     if (player == 2 && s.p2RemainingToPlace > 0) s.p2RemainingToPlace -= 1;
 
-    if (_formsMill(s.board, m.to, player)) {
+    if (_formsThabet(s.board, m.to, player)) {
       final opp = player == 1 ? 2 : 1;
       final victim = _chooseBestRemovalTarget(s.board, opp);
       if (victim != null) s.board[victim] = null;
@@ -706,17 +706,17 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   int? _chooseBestRemovalTarget(List<int?> board, int opponent) {
     int? bestIdx;
     int bestScore = -100000;
-    bool allInMills = _allOpponentInMills(board, opponent);
+    bool allProtected = _allOpponentProtected(board, opponent);
 
     for (int i = 0; i < 24; i++) {
       if (board[i] != opponent) continue;
-      if (!allInMills && _isPartOfAnyMill(board, i, opponent)) continue;
+      if (!allProtected && _isProtectedByThabet(board, i, opponent)) continue;
 
       int score = 0;
-      for (final m in mills) {
-        if (!m.contains(i)) continue;
-        int oppCount = m.where((idx) => board[idx] == opponent).length;
-        int emptyCount = m.where((idx) => board[idx] == null).length;
+      for (final line in thabetLines) {
+        if (!line.contains(i)) continue;
+        int oppCount = line.where((idx) => board[idx] == opponent).length;
+        int emptyCount = line.where((idx) => board[idx] == null).length;
         if (oppCount == 2 && emptyCount == 1) score += 120;
         if (oppCount == 1 && emptyCount == 2) score += 25;
       }
@@ -771,10 +771,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     int aiOpenTwo = 0;
     int p1OpenTwo = 0;
 
-    for (final m in mills) {
-      int c2 = m.where((idx) => s.board[idx] == 2).length;
-      int c1 = m.where((idx) => s.board[idx] == 1).length;
-      int emp = m.where((idx) => s.board[idx] == null).length;
+    for (final line in thabetLines) {
+      int c2 = line.where((idx) => s.board[idx] == 2).length;
+      int c1 = line.where((idx) => s.board[idx] == 1).length;
+      int emp = line.where((idx) => s.board[idx] == null).length;
 
       if (c2 == 3) score += 180;
       if (c1 == 3) score -= 190;
@@ -833,7 +833,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
             children: [
               _ruleSection('1. مرحلة الوضع', 'يضع كل لاعب 9 قطع بالتناوب على نقاط التقاطع الفارغة في اللوحة.'),
               const SizedBox(height: 10),
-              _ruleSection('2. تكوين «ثبت» (طاحونة)', 'صف 3 قطع من لونك على خط مستقيم لتكوين «ثبت» وإزالة قطعة للخصم (لا تُزال قطعة داخل طاحونة مكتملة إلا إذا كانت كل قطع الخصم في طواحين).'),
+              _ruleSection('2. تحقيق «ثبت»', 'صف 3 قطع من لونك على خط مستقيم لتحقيق «ثبت» وإزالة قطعة للخصم (لا تُزال قطعة محمية بـ «ثبت» مكتمل إلا إذا كانت كل قطع الخصم محمية).'),
               const SizedBox(height: 10),
               _ruleSection('3. التحريك والطيران', 'حرّك قطعة إلى نقطة مجاورة فارغة؛ وعندما يبقى لك 3 قطع فقط يمكنك الطيران لأي نقطة فارغة.'),
               const SizedBox(height: 10),

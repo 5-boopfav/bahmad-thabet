@@ -1,11 +1,40 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 
 void main() {
   runApp(const ThabetApp());
+}
+
+class SoundFX {
+  static final AudioPlayer _player = AudioPlayer();
+
+  static Future<void> _playAsset(String assetPath, SystemSoundType fallback) async {
+    try {
+      await _player.stop();
+      await _player.play(AssetSource(assetPath));
+    } catch (_) {
+      SystemSound.play(fallback);
+    }
+  }
+
+  static Future<void> playPlace(bool enabled) async {
+    if (!enabled) return;
+    await _playAsset('sounds/place.wav', SystemSoundType.click);
+  }
+
+  static Future<void> playMill(bool enabled) async {
+    if (!enabled) return;
+    await _playAsset('sounds/mill.wav', SystemSoundType.alert);
+  }
+
+  static Future<void> playRemove(bool enabled) async {
+    if (!enabled) return;
+    await _playAsset('sounds/remove.wav', SystemSoundType.click);
+  }
 }
 
 class BoardTheme {
@@ -96,8 +125,20 @@ class _ThabetAppState extends State<ThabetApp> {
 
   void sound() {
     if (soundEnabled) {
-      SystemSound.play(SystemSoundType.click);
+      SoundFX.playPlace(true);
     }
+  }
+
+  void playPlaceSound() {
+    SoundFX.playPlace(soundEnabled);
+  }
+
+  void playMillSound() {
+    SoundFX.playMill(soundEnabled);
+  }
+
+  void playRemoveSound() {
+    SoundFX.playRemove(soundEnabled);
   }
 
   void vibrate() {
@@ -132,6 +173,9 @@ class _ThabetAppState extends State<ThabetApp> {
         onSoundChanged: (v) => setState(() => soundEnabled = v),
         onVibrationChanged: (v) => setState(() => vibrationEnabled = v),
         sound: sound,
+        playPlaceSound: playPlaceSound,
+        playMillSound: playMillSound,
+        playRemoveSound: playRemoveSound,
         vibrate: vibrate,
       ),
     );
@@ -154,6 +198,9 @@ class HomePage extends StatelessWidget {
   final ValueChanged<bool> onVibrationChanged;
 
   final VoidCallback sound;
+  final VoidCallback playPlaceSound;
+  final VoidCallback playMillSound;
+  final VoidCallback playRemoveSound;
   final VoidCallback vibrate;
 
   const HomePage({
@@ -169,6 +216,9 @@ class HomePage extends StatelessWidget {
     required this.onSoundChanged,
     required this.onVibrationChanged,
     required this.sound,
+    required this.playPlaceSound,
+    required this.playMillSound,
+    required this.playRemoveSound,
     required this.vibrate,
   });
 
@@ -353,6 +403,9 @@ class HomePage extends StatelessWidget {
           computerMode: computer,
           difficulty: difficulty,
           sound: sound,
+          playPlaceSound: playPlaceSound,
+          playMillSound: playMillSound,
+          playRemoveSound: playRemoveSound,
           vibrate: vibrate,
         ),
       ),
@@ -596,6 +649,9 @@ class GamePage extends StatefulWidget {
   final bool computerMode;
   final int difficulty;
   final VoidCallback sound;
+  final VoidCallback playPlaceSound;
+  final VoidCallback playMillSound;
+  final VoidCallback playRemoveSound;
   final VoidCallback vibrate;
 
   const GamePage({
@@ -605,6 +661,9 @@ class GamePage extends StatefulWidget {
     required this.computerMode,
     required this.difficulty,
     required this.sound,
+    required this.playPlaceSound,
+    required this.playMillSound,
+    required this.playRemoveSound,
     required this.vibrate,
   });
 
@@ -704,7 +763,7 @@ class _GamePageState extends State<GamePage>
     )..addStatusListener((statusAnim) {
         if (statusAnim == AnimationStatus.completed && mounted) {
           setState(() => _flyingStone = null);
-          widget.sound();
+          widget.playPlaceSound();
           widget.vibrate();
         }
       });
@@ -801,7 +860,7 @@ class _GamePageState extends State<GamePage>
       millCelebration = true;
     });
 
-    widget.sound();
+    widget.playMillSound();
     widget.vibrate();
 
     millTimer = Timer(const Duration(milliseconds: 1200), () {
@@ -905,6 +964,8 @@ class _GamePageState extends State<GamePage>
       if (hasMill(chosen, 2)) {
         if (firstMill == null) firstMill = 2;
         _celebrateMill(chosen, 2);
+      } else {
+        widget.playPlaceSound();
       }
 
       _saveHistory();
@@ -972,6 +1033,7 @@ class _GamePageState extends State<GamePage>
         status = 'الكمبيوتر كوّن ثبّت!';
         _celebrateMill(chosen[1], 2);
       } else {
+        widget.playPlaceSound();
         _endTurn();
       }
     });
@@ -1002,6 +1064,7 @@ class _GamePageState extends State<GamePage>
     setState(() {
       board[target] = 0;
       pendingRemoval = null;
+      widget.playRemoveSound();
       _saveHistory();
       _afterRemoval(2);
     });
@@ -1081,7 +1144,7 @@ class _GamePageState extends State<GamePage>
       _afterRemoval(remover);
     });
 
-    widget.sound();
+    widget.playRemoveSound();
     widget.vibrate();
   }
 
@@ -1130,13 +1193,14 @@ class _GamePageState extends State<GamePage>
       if (hasMill(index, currentPlayer)) {
         if (firstMill == null) firstMill = currentPlayer;
         _celebrateMill(index, currentPlayer);
+      } else {
+        widget.playPlaceSound();
       }
 
       _saveHistory();
       _afterPlacement();
     });
 
-    widget.sound();
     widget.vibrate();
   }
 
@@ -1157,11 +1221,11 @@ class _GamePageState extends State<GamePage>
         status = 'ثبّت! اختر حجرًا من ${playerName(3 - turn)} لإزالته.';
         _celebrateMill(to, turn);
       } else {
+        widget.playPlaceSound();
         _endTurn();
       }
     });
 
-    widget.sound();
     widget.vibrate();
   }
 
@@ -1169,14 +1233,12 @@ class _GamePageState extends State<GamePage>
     if (paused || winner != null || replayMode) return;
     if (widget.computerMode && turn == 2) return;
     if (pendingRemoval != null) {
-      widget.sound();
       widget.vibrate();
       _removeStone(index);
       return;
     }
 
     if (phase == 0) {
-      widget.sound();
       widget.vibrate();
 
       if (board[index] == 0) {
@@ -1189,7 +1251,7 @@ class _GamePageState extends State<GamePage>
           showHint = false;
           hintDestination = null;
         });
-        widget.sound();
+        widget.playPlaceSound();
         widget.vibrate();
       } else if (selected != null &&
           board[index] == 0 &&
@@ -1434,7 +1496,6 @@ class _GamePageState extends State<GamePage>
               final availableWidth = math.max(0.0, constraints.maxWidth - 28);
               final availableHeight = math.max(0.0, constraints.maxHeight);
 
-              // حجم ثابت للوحة يمنع اهتزازها أو تحركها أثناء اللعب.
               final boardSize = math.min(
                 availableWidth,
                 availableHeight * .55,
@@ -1443,7 +1504,6 @@ class _GamePageState extends State<GamePage>
 
               return Column(
                 children: [
-                  // ارتفاع ثابت لطابور الكرات العلوي لضمان عدم اهتزاز اللوحة.
                   SizedBox(
                     height: 54,
                     child: _stoneQueueRow(
@@ -1453,8 +1513,6 @@ class _GamePageState extends State<GamePage>
                       isTop: true,
                     ),
                   ),
-
-                  // شريط الحالة والوقت بلمسة هادئة.
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 18,
@@ -1527,7 +1585,6 @@ class _GamePageState extends State<GamePage>
                       ),
                     ),
                   ),
-
                   Expanded(
                     child: Center(
                       child: SizedBox(
@@ -1537,8 +1594,6 @@ class _GamePageState extends State<GamePage>
                       ),
                     ),
                   ),
-
-                  // ارتفاع ثابت لطابور الكرات السفلي لضمان عدم اهتزاز اللوحة.
                   SizedBox(
                     height: 54,
                     child: _stoneQueueRow(
@@ -1548,7 +1603,6 @@ class _GamePageState extends State<GamePage>
                       isTop: false,
                     ),
                   ),
-
                   if (replayMode)
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1584,7 +1638,6 @@ class _GamePageState extends State<GamePage>
                         ),
                       ],
                     ),
-
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 2, 8, 8),
                     child: Wrap(

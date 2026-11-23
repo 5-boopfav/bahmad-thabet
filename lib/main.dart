@@ -578,6 +578,18 @@ class HomePage extends StatelessWidget {
   }
 }
 
+class _FlyingStone {
+  final int player;
+  final Offset startOffset;
+  final Offset endOffset;
+
+  const _FlyingStone({
+    required this.player,
+    required this.startOffset,
+    required this.endOffset,
+  });
+}
+
 class GamePage extends StatefulWidget {
   final BoardTheme theme;
   final Color appBackground;
@@ -600,7 +612,8 @@ class GamePage extends StatefulWidget {
   State<GamePage> createState() => _GamePageState();
 }
 
-class _GamePageState extends State<GamePage> {
+class _GamePageState extends State<GamePage>
+    with SingleTickerProviderStateMixin {
   static int nextStarter = 1;
 
   final List<Offset> points = const [
@@ -633,6 +646,10 @@ class _GamePageState extends State<GamePage> {
   late final List<List<int>> edges;
   late final List<List<int>> near;
   late final List<List<int>> mills;
+
+  late final AnimationController _flyController;
+  _FlyingStone? _flyingStone;
+  double _currentBoardSize = 320;
 
   List<int> board = List.filled(24, 0);
   List<List<int>> history = [];
@@ -672,6 +689,11 @@ class _GamePageState extends State<GamePage> {
   int get playerCount => board.where((v) => v == 1).length;
   int get computerCount => board.where((v) => v == 2).length;
 
+  int get whiteRemovedCount =>
+      (whitePlaced - playerCount).clamp(0, 12);
+  int get blackRemovedCount =>
+      (blackPlaced - computerCount).clamp(0, 12);
+
   String playerName(int p) => p == 1 ? 'الأبيض' : 'الأسود';
 
   @override
@@ -680,6 +702,17 @@ class _GamePageState extends State<GamePage> {
     starter = nextStarter;
     turn = starter;
     status = 'دور ${playerName(turn)}: ضع حجرًا';
+
+    _flyController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    )..addStatusListener((statusAnim) {
+        if (statusAnim == AnimationStatus.completed && mounted) {
+          setState(() => _flyingStone = null);
+          widget.sound();
+          widget.vibrate();
+        }
+      });
 
     edges = [];
     for (int r = 0; r < 3; r++) {
@@ -709,6 +742,22 @@ class _GamePageState extends State<GamePage> {
     });
 
     _scheduleComputer();
+  }
+
+  void _launchStoneFromCenter(int player, int targetIndex) {
+    final size = _currentBoardSize;
+    final startOffset = Offset(size * 0.5, size * (player == 1 ? 1.18 : -0.18));
+    final endOffset = Offset(
+      points[targetIndex].dx * size,
+      points[targetIndex].dy * size,
+    );
+
+    _flyingStone = _FlyingStone(
+      player: player,
+      startOffset: startOffset,
+      endOffset: endOffset,
+    );
+    _flyController.forward(from: 0.0);
   }
 
   List<List<int>> _createMills() {
@@ -856,6 +905,7 @@ class _GamePageState extends State<GamePage> {
     setState(() {
       board[chosen] = 2;
       blackPlaced++;
+      _launchStoneFromCenter(2, chosen);
 
       if (hasMill(chosen, 2)) {
         if (firstMill == null) firstMill = 2;
@@ -1070,18 +1120,21 @@ class _GamePageState extends State<GamePage> {
 
   void _placeStone(int index) {
     if (board[index] != 0) return;
+    final currentPlayer = turn;
     setState(() {
-      board[index] = turn;
+      board[index] = currentPlayer;
 
-      if (turn == 1) {
+      if (currentPlayer == 1) {
         whitePlaced++;
       } else {
         blackPlaced++;
       }
 
-      if (hasMill(index, turn)) {
-        if (firstMill == null) firstMill = turn;
-        _celebrateMill(index, turn);
+      _launchStoneFromCenter(currentPlayer, index);
+
+      if (hasMill(index, currentPlayer)) {
+        if (firstMill == null) firstMill = currentPlayer;
+        _celebrateMill(index, currentPlayer);
       }
 
       _saveHistory();
@@ -1163,7 +1216,9 @@ class _GamePageState extends State<GamePage> {
   void _restart() {
     aiTimer?.cancel();
     millTimer?.cancel();
+    _flyController.stop();
     setState(() {
+      _flyingStone = null;
       starter = 3 - starter;
       nextStarter = starter;
       turn = starter;
@@ -1328,12 +1383,12 @@ class _GamePageState extends State<GamePage> {
     clock?.cancel();
     aiTimer?.cancel();
     millTimer?.cancel();
+    _flyController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final t = widget.theme;
     final isDarkBg =
         ThemeData.estimateBrightnessForColor(widget.appBackground) ==
             Brightness.dark;
@@ -1345,9 +1400,9 @@ class _GamePageState extends State<GamePage> {
         elevation: 0,
         foregroundColor: isDarkBg ? Colors.white : Colors.black87,
         centerTitle: true,
-        title: const Text(
-          'ثبّت • BAHMAD THABET',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        title: Text(
+          widget.computerMode ? 'الكمبيوتر' : 'ثبّت • BAHMAD THABET',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         actions: [
           IconButton(
@@ -1386,78 +1441,88 @@ class _GamePageState extends State<GamePage> {
 
               final boardSize = math.min(
                 availableWidth,
-                availableHeight * .62,
-              ).clamp(0.0, 560.0);
+                availableHeight * .56,
+              ).clamp(0.0, 540.0);
+              _currentBoardSize = boardSize;
 
               return Column(
                 children: [
-                  const SizedBox(height: 4),
-                  _playerPanel(
-                    label: widget.computerMode ? 'الكمبيوتر' : 'الأسود',
-                    count: computerCount,
-                    placed: blackPlaced,
+                  // طابور الكرات السوداء بالأعلى كما في الفيديو.
+                  _stoneQueueRow(
                     player: 2,
+                    placed: blackPlaced,
+                    removed: whiteRemovedCount,
                     active: turn == 2,
+                    isTop: true,
                   ),
 
-                  // شريط الحالة والوقت بلمسة ناعمة مشابهة للفيديو.
+                  // شريط الحالة والوقت بلمسة هادئة.
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 5,
+                      horizontal: 18,
+                      vertical: 4,
                     ),
                     child: Container(
                       width: double.infinity,
-                      height: 60,
+                      height: 48,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 5,
+                        horizontal: 12,
+                        vertical: 4,
                       ),
                       decoration: BoxDecoration(
                         color: isDarkBg
-                            ? Colors.white.withOpacity(.06)
-                            : Colors.black.withOpacity(.05),
-                        borderRadius: BorderRadius.circular(16),
+                            ? Colors.white.withOpacity(.05)
+                            : Colors.black.withOpacity(.04),
+                        borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: isDarkBg
-                              ? Colors.white.withOpacity(.1)
-                              : Colors.black.withOpacity(.08),
+                              ? Colors.white.withOpacity(.08)
+                              : Colors.black.withOpacity(.06),
                         ),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Row(
                         children: [
-                          SizedBox(
-                            height: 32,
-                            child: Center(
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 220),
-                                switchInCurve: Curves.easeOutCubic,
-                                switchOutCurve: Curves.easeInCubic,
-                                child: Text(
-                                  status,
-                                  key: ValueKey(status),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: isDarkBg
-                                        ? Colors.white
-                                        : Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
                           Text(
-                            'الوقت: ${_formatTime()}',
+                            _formatTime(),
                             style: TextStyle(
                               color: isDarkBg
                                   ? Colors.white60
                                   : Colors.black54,
                               fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 220),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              child: Text(
+                                status,
+                                key: ValueKey(status),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12.5,
+                                  color: isDarkBg
+                                      ? Colors.white
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$computerCount : $playerCount',
+                            style: TextStyle(
+                              color: isDarkBg
+                                  ? Colors.white70
+                                  : Colors.black87,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
@@ -1475,12 +1540,13 @@ class _GamePageState extends State<GamePage> {
                     ),
                   ),
 
-                  _playerPanel(
-                    label: 'الأبيض',
-                    count: playerCount,
-                    placed: whitePlaced,
+                  // طابور الكرات البيضاء بالأسفل كما في الفيديو.
+                  _stoneQueueRow(
                     player: 1,
+                    placed: whitePlaced,
+                    removed: blackRemovedCount,
                     active: turn == 1,
+                    isTop: false,
                   ),
 
                   if (replayMode)
@@ -1520,11 +1586,11 @@ class _GamePageState extends State<GamePage> {
                     ),
 
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                    padding: const EdgeInsets.fromLTRB(8, 2, 8, 8),
                     child: Wrap(
                       alignment: WrapAlignment.center,
                       spacing: 6,
-                      runSpacing: 3,
+                      runSpacing: 2,
                       children: [
                         if (widget.computerMode && !replayMode)
                           _actionButton(
@@ -1551,8 +1617,89 @@ class _GamePageState extends State<GamePage> {
     );
   }
 
+  Widget _stoneQueueRow({
+    required int player,
+    required int placed,
+    required int removed,
+    required bool active,
+    required bool isTop,
+  }) {
+    final remaining = (12 - placed).clamp(0, 12);
+    final showReadyCenterBall = active && phase == 0 && remaining > 0;
+    final queueCount = showReadyCenterBall ? remaining - 1 : remaining;
+    final opponentPlayer = 3 - player;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // صف الكرات المتبقية في الطابور.
+          Row(
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(
+                  queueCount,
+                  (index) => Padding(
+                    padding: const EdgeInsets.only(right: 2.5),
+                    child: _playerBall(player, 19),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // الكرات المزالة للخصم تظهر في الجانب المقابل كما في الفيديو.
+              if (removed > 0)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(
+                    removed.clamp(0, 12),
+                    (index) => Padding(
+                      padding: const EdgeInsets.only(left: 2),
+                      child: Opacity(
+                        opacity: 0.85,
+                        child: _playerBall(opponentPlayer, 14),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          // الكرة الجاهزة للخروج من المنتصف نحو اللوحة.
+          if (showReadyCenterBall)
+            Padding(
+              padding: EdgeInsets.only(
+                top: isTop ? 6 : 2,
+                bottom: isTop ? 2 : 6,
+              ),
+              child: AnimatedScale(
+                scale: 1.06,
+                duration: const Duration(milliseconds: 220),
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.white.withOpacity(.45),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: _playerBall(player, 28),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _boardWidget(double size) {
     final t = widget.theme;
+    final stoneSize = size * .082;
+
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -1576,6 +1723,28 @@ class _GamePageState extends State<GamePage> {
           ),
         ),
         for (int i = 0; i < 24; i++) _stoneWidget(i, size),
+        if (_flyingStone != null)
+          AnimatedBuilder(
+            animation: _flyController,
+            builder: (context, child) {
+              final curved = CurvedAnimation(
+                parent: _flyController,
+                curve: Curves.easeOutCubic,
+              ).value;
+              final pos = Offset.lerp(
+                _flyingStone!.startOffset,
+                _flyingStone!.endOffset,
+                curved,
+              )!;
+              return Positioned(
+                left: pos.dx - stoneSize / 2,
+                top: pos.dy - stoneSize / 2,
+                child: IgnorePointer(
+                  child: _playerBall(_flyingStone!.player, stoneSize * 1.08),
+                ),
+              );
+            },
+          ),
         if (millCelebration)
           Positioned(
             top: 10,
@@ -1645,7 +1814,6 @@ class _GamePageState extends State<GamePage> {
         value == turn &&
         !(widget.computerMode && turn == 2);
 
-    // حجم الحجر قريب من حجم الأحجار في الفيديو.
     final stoneSize = size * .082;
 
     final stone = AnimatedContainer(
@@ -1844,143 +2012,6 @@ class _GamePageState extends State<GamePage> {
     return distance < size * .095 ? best : null;
   }
 
-  Widget _playerPanel({
-    required String label,
-    required int count,
-    required int placed,
-    required int player,
-    required bool active,
-  }) {
-    final t = widget.theme;
-    final isDarkBg =
-        ThemeData.estimateBrightnessForColor(widget.appBackground) ==
-            Brightness.dark;
-    final remaining = (12 - placed).clamp(0, 12);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: isDarkBg
-            ? Colors.white.withOpacity(active ? .09 : .04)
-            : Colors.black.withOpacity(active ? .08 : .04),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: active
-              ? (isDarkBg ? Colors.white.withOpacity(.55) : t.accent)
-              : (isDarkBg
-                  ? Colors.white.withOpacity(.1)
-                  : Colors.black.withOpacity(.08)),
-          width: active ? 1.6 : 1,
-        ),
-        boxShadow: active
-            ? [
-                BoxShadow(
-                  color: Colors.white.withOpacity(isDarkBg ? .08 : .0),
-                  blurRadius: 10,
-                ),
-              ]
-            : [],
-      ),
-      child: Row(
-        children: [
-          _playerBall(player, 24),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: active
-                        ? (isDarkBg ? Colors.white : Colors.black)
-                        : (isDarkBg ? Colors.white70 : Colors.black87),
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 6),
-
-                // الأحجار المتبقية تظهر ككرات فعلية مشابهة للفيديو.
-                SizedBox(
-                  height: 16,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      const ballSize = 12.5;
-                      const spacing = 4.0;
-
-                      final available = constraints.maxWidth;
-                      final totalWidth = 12 * ballSize + 11 * spacing;
-                      final scale = totalWidth > available
-                          ? available / totalWidth
-                          : 1.0;
-
-                      final actualBall = ballSize * scale;
-                      final actualSpacing = spacing * scale;
-
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(12, (index) {
-                          final visible = index < remaining;
-
-                          return Padding(
-                            padding: EdgeInsets.only(
-                              right: index == 11 ? 0 : actualSpacing,
-                            ),
-                            child: AnimatedOpacity(
-                              opacity: visible ? 1 : 0.14,
-                              duration: const Duration(milliseconds: 250),
-                              child: _playerBall(player, actualBall),
-                            ),
-                          );
-                        }),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            '$count',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: isDarkBg ? Colors.white : Colors.black87,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            'حجر',
-            style: TextStyle(
-              fontSize: 11,
-              color: isDarkBg ? Colors.white60 : Colors.black54,
-            ),
-          ),
-          if (active) ...[
-            const SizedBox(width: 7),
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.white.withOpacity(.7),
-                    blurRadius: 6,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   Widget _playerBall(int player, double size) {
     return Container(
       width: size,
@@ -2065,7 +2096,6 @@ class BoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
-    // ظل ناعم للوحة على الخلفية الداكنة.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         rect.deflate(2),
@@ -2078,7 +2108,6 @@ class BoardPainter extends CustomPainter {
 
     final boardRect = rect.deflate(4);
 
-    // سطح خشبي دافئ متدرج بلطف مثل الفيديو.
     final woodPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topLeft,
@@ -2098,7 +2127,6 @@ class BoardPainter extends CustomPainter {
       woodPaint,
     );
 
-    // حواف بارزة خفيفة لإعطاء عمق اللوحة الخشبية.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         boardRect,
@@ -2121,7 +2149,6 @@ class BoardPainter extends CustomPainter {
         ..strokeWidth = size.width * .005,
     );
 
-    // خطوط الشبكة البنية الواضحة.
     final boardLines = Paint()
       ..color = theme.lines
       ..strokeWidth = size.width * .011
@@ -2142,7 +2169,6 @@ class BoardPainter extends CustomPainter {
       canvas.drawLine(a, b, boardLines);
     }
 
-    // نقاط التقاطع الصغيرة على اللوحة.
     for (final point in points) {
       final center = Offset(
         point.dx * size.width,
@@ -2167,7 +2193,6 @@ class BoardPainter extends CustomPainter {
       );
     }
 
-    // إضاءة متوهجة عند تكوين ثبّت (3 أحجار متتالية).
     if (millCelebration && highlightedMill.length == 3) {
       final a = Offset(
         points[highlightedMill.first].dx * size.width,

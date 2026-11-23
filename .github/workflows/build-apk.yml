@@ -58,14 +58,29 @@ jobs:
           import os, re, shutil, struct, zlib
 
           candidates = [
+              "image_57d593b5.jpg",
               "Image_57d593b5.jpg",
+              "assets/icon/image_57d593b5.jpg",
               "assets/icon/Image_57d593b5.jpg",
           ]
-          src_icon = next((p for p in candidates if os.path.exists(p)), None)
+          src_icon = next((p for p in candidates if os.path.isfile(p)), None)
 
           if src_icon is None:
+              for root, dirs, files in os.walk("."):
+                  dirs[:] = [d for d in dirs if d not in {".git", "android", "build", ".dart_tool"}]
+                  for fn in files:
+                      if "57d593b5" in fn.lower():
+                          src_icon = os.path.join(root, fn)
+                          break
+                  if src_icon:
+                      break
+
+          if src_icon:
+              print(f"Using custom icon: {src_icon} ({os.path.getsize(src_icon)} bytes)")
+          else:
+              print("WARNING: Custom icon file not found; generating fallback.")
               os.makedirs("assets/icon", exist_ok=True)
-              src_icon = "assets/icon/Image_57d593b5.jpg"
+              src_icon = "assets/icon/fallback_icon.png"
               w, h = 512, 512
               row = bytes([0]) + bytes([220, 164, 99, 255] * w)
               raw = row * h
@@ -119,6 +134,26 @@ jobs:
               text = re.sub(
                   r"(?<!•\s)BAHMAD THABET",
                   "بحمــــــــــــــــد 👑",
+                  text,
+              )
+
+              with open(path, "w", encoding="utf-8") as f:
+                  f.write(text)
+          EOF
+
+      - name: Update Computer Player Name
+        run: |
+          python3 - << 'EOF'
+          import os, re
+
+          path = "lib/main.dart"
+          if os.path.exists(path):
+              with open(path, "r", encoding="utf-8") as f:
+                  text = f.read()
+
+              text = re.sub(
+                  r"(?<=['\"])الكمبيوتر(?=['\"])",
+                  "الكمبيوتر🤖 (بحمد)",
                   text,
               )
 

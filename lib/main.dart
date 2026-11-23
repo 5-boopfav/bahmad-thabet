@@ -28,51 +28,51 @@ class BoardTheme {
 
 const List<BoardTheme> boardThemes = [
   BoardTheme(
+    name: 'الخشبي الكلاسيكي',
+    background: Color(0xff2c2d2e),
+    wood: Color(0xffdca463),
+    lines: Color(0xff5a371c),
+    points: Color(0xfffdf6e7),
+    accent: Color(0xffe5a95c),
+  ),
+  BoardTheme(
     name: 'الخشبي الملكي',
-    background: Color(0xff17100c),
-    wood: Color(0xff59351f),
-    lines: Color(0xffe3bd79),
-    points: Color(0xffffd27a),
+    background: Color(0xff1e1b18),
+    wood: Color(0xffc99252),
+    lines: Color(0xff4a2c16),
+    points: Color(0xfffff2d6),
     accent: Color(0xffd6a84f),
   ),
   BoardTheme(
     name: 'المحيط',
-    background: Color(0xff101c2c),
-    wood: Color(0xff183b55),
-    lines: Color(0xff70d6e8),
-    points: Color(0xffa2f0ff),
-    accent: Color(0xff36b9d4),
+    background: Color(0xff1c2229),
+    wood: Color(0xff6da5b8),
+    lines: Color(0xff1d3c4a),
+    points: Color(0xffe6f9ff),
+    accent: Color(0xff52b8d4),
   ),
   BoardTheme(
     name: 'الليلي',
-    background: Color(0xff171323),
-    wood: Color(0xff30233f),
-    lines: Color(0xffbd8cff),
-    points: Color(0xffdfbdff),
-    accent: Color(0xffa66be8),
-  ),
-  BoardTheme(
-    name: 'الناري',
-    background: Color(0xff24100e),
-    wood: Color(0xff54221c),
-    lines: Color(0xffffa45e),
-    points: Color(0xffffca77),
-    accent: Color(0xffe86a37),
+    background: Color(0xff201d28),
+    wood: Color(0xff8c76a8),
+    lines: Color(0xff352647),
+    points: Color(0xfff5ecff),
+    accent: Color(0xffb592e0),
   ),
   BoardTheme(
     name: 'الرخامي',
-    background: Color(0xff171b22),
-    wood: Color(0xff414954),
-    lines: Color(0xffd9e1e8),
+    background: Color(0xff25282c),
+    wood: Color(0xffb5bcc2),
+    lines: Color(0xff3c424a),
     points: Color(0xffffffff),
-    accent: Color(0xffaebdce),
+    accent: Color(0xff9aa6b2),
   ),
 ];
 
 const List<Color> appBackgrounds = [
-  Color(0xfff5f5f5),
-  Color(0xffe8e8e8),
-  Color(0xff171717),
+  Color(0xff2b2c2d),
+  Color(0xff383a3c),
+  Color(0xff1b1c1d),
   Color(0xff34271f),
   Color(0xffe8edf4),
 ];
@@ -173,8 +173,7 @@ class HomePage extends StatelessWidget {
   });
 
   bool get isDark =>
-      ThemeData.estimateBrightnessForColor(appBackground) ==
-      Brightness.dark;
+      ThemeData.estimateBrightnessForColor(appBackground) == Brightness.dark;
 
   Color get textColor => isDark ? Colors.white : Colors.black87;
 
@@ -182,102 +181,120 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: appBackground,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(22),
-          child: Column(
-            children: [
-              const SizedBox(height: 35),
-              Container(
-                width: 115,
-                height: 115,
-                decoration: BoxDecoration(
-                  color: theme.wood,
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: theme.lines, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.accent.withOpacity(.3),
-                      blurRadius: 25,
-                    ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? [
+                    appBackground.withOpacity(0.95),
+                    const Color(0xff161718),
+                  ]
+                : [
+                    appBackground,
+                    appBackground.withOpacity(0.85),
                   ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              children: [
+                const SizedBox(height: 35),
+                Container(
+                  width: 115,
+                  height: 115,
+                  decoration: BoxDecoration(
+                    color: theme.wood,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: theme.lines, width: 2.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.45),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    Icons.grid_4x4_rounded,
+                    size: 65,
+                    color: theme.lines,
+                  ),
                 ),
-                child: Icon(
-                  Icons.grid_4x4_rounded,
-                  size: 65,
-                  color: theme.lines,
+                const SizedBox(height: 20),
+                Text(
+                  'ثبّت',
+                  style: TextStyle(
+                    fontSize: 50,
+                    fontWeight: FontWeight.bold,
+                    color: theme.accent,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'ثبّت',
-                style: TextStyle(
-                  fontSize: 50,
-                  fontWeight: FontWeight.bold,
-                  color: theme.accent,
+                Text(
+                  'BAHMAD THABET',
+                  style: TextStyle(
+                    fontSize: 14,
+                    letterSpacing: 4,
+                    color: textColor.withOpacity(.7),
+                  ),
                 ),
-              ),
-              Text(
-                'BAHMAD THABET',
-                style: TextStyle(
-                  fontSize: 14,
-                  letterSpacing: 4,
-                  color: textColor.withOpacity(.7),
+                const SizedBox(height: 12),
+                Text(
+                  'لعبة الذكاء والتحدي',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: textColor.withOpacity(.7),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'لعبة الذكاء والتحدي',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: textColor.withOpacity(.7),
+                const SizedBox(height: 45),
+                _button(
+                  context,
+                  'العب ضد الكمبيوتر',
+                  Icons.smart_toy,
+                  () => _chooseDifficulty(context),
+                  main: true,
                 ),
-              ),
-              const SizedBox(height: 45),
-              _button(
-                context,
-                'العب ضد الكمبيوتر',
-                Icons.smart_toy,
-                () => _chooseDifficulty(context),
-                main: true,
-              ),
-              const SizedBox(height: 13),
-              _button(
-                context,
-                'لاعبان على نفس الجهاز',
-                Icons.people_alt,
-                () => _start(context, false, 1),
-              ),
-              const SizedBox(height: 13),
-              _button(
-                context,
-                'قواعد اللعبة',
-                Icons.menu_book,
-                () => rules(context),
-              ),
-              const SizedBox(height: 13),
-              _button(
-                context,
-                'مظهر الطاولة',
-                Icons.palette,
-                () => _themes(context),
-              ),
-              const SizedBox(height: 13),
-              _button(
-                context,
-                'الإعدادات',
-                Icons.settings,
-                () => _settings(context),
-              ),
-              const SizedBox(height: 40),
-              Text(
-                'BAHMAD • 2026',
-                style: TextStyle(
-                  color: textColor.withOpacity(.35),
-                  letterSpacing: 2,
+                const SizedBox(height: 13),
+                _button(
+                  context,
+                  'لاعبان على نفس الجهاز',
+                  Icons.people_alt,
+                  () => _start(context, false, 1),
                 ),
-              ),
-            ],
+                const SizedBox(height: 13),
+                _button(
+                  context,
+                  'قواعد اللعبة',
+                  Icons.menu_book,
+                  () => rules(context),
+                ),
+                const SizedBox(height: 13),
+                _button(
+                  context,
+                  'مظهر الطاولة',
+                  Icons.palette,
+                  () => _themes(context),
+                ),
+                const SizedBox(height: 13),
+                _button(
+                  context,
+                  'الإعدادات',
+                  Icons.settings,
+                  () => _settings(context),
+                ),
+                const SizedBox(height: 40),
+                Text(
+                  'BAHMAD • 2026',
+                  style: TextStyle(
+                    color: textColor.withOpacity(.35),
+                    letterSpacing: 2,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -304,7 +321,7 @@ class HomePage extends StatelessWidget {
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: theme.accent,
-                foregroundColor: Colors.black,
+                foregroundColor: Colors.black87,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
@@ -327,7 +344,6 @@ class HomePage extends StatelessWidget {
   void _start(BuildContext context, bool computer, int difficulty) {
     sound();
     vibrate();
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -346,7 +362,7 @@ class HomePage extends StatelessWidget {
   void _chooseDifficulty(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xff2b2018),
+      backgroundColor: const Color(0xff2b2c2e),
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -358,7 +374,7 @@ class HomePage extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.bold,
-                  color: theme.lines,
+                  color: theme.accent,
                 ),
               ),
               const SizedBox(height: 15),
@@ -380,9 +396,10 @@ class HomePage extends StatelessWidget {
     int level,
   ) {
     return ListTile(
-      leading: Icon(Icons.smart_toy, color: theme.lines),
-      title: Text(title),
-      subtitle: Text(subtitle),
+      leading: Icon(Icons.smart_toy, color: theme.accent),
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      subtitle:
+          Text(subtitle, style: const TextStyle(color: Colors.white70)),
       onTap: () {
         Navigator.pop(sheetContext);
         _start(homeContext, true, level);
@@ -393,19 +410,20 @@ class HomePage extends StatelessWidget {
   void _themes(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xff241a13),
+      backgroundColor: const Color(0xff2b2c2e),
       builder: (ctx) => SafeArea(
         child: ListView(
           shrinkWrap: true,
           children: [
-            const Padding(
-              padding: EdgeInsets.all(18),
+            Padding(
+              padding: const EdgeInsets.all(18),
               child: Text(
                 'اختر مظهر الطاولة',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.bold,
+                  color: theme.accent,
                 ),
               ),
             ),
@@ -415,9 +433,12 @@ class HomePage extends StatelessWidget {
                   backgroundColor: boardThemes[i].wood,
                   child: Icon(Icons.palette, color: boardThemes[i].lines),
                 ),
-                title: Text(boardThemes[i].name),
+                title: Text(
+                  boardThemes[i].name,
+                  style: const TextStyle(color: Colors.white),
+                ),
                 trailing: themeIndex == i
-                    ? Icon(Icons.check_circle, color: theme.lines)
+                    ? Icon(Icons.check_circle, color: theme.accent)
                     : null,
                 onTap: () {
                   onThemeChanged(i);
@@ -433,7 +454,7 @@ class HomePage extends StatelessWidget {
   void _settings(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xff241a13),
+      backgroundColor: const Color(0xff2b2c2e),
       builder: (ctx) => StatefulBuilder(
         builder: (context, setSheet) => SafeArea(
           child: Padding(
@@ -446,11 +467,15 @@ class HomePage extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 21,
                     fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 8),
                 SwitchListTile(
-                  title: const Text('الأصوات'),
+                  title: const Text(
+                    'الأصوات',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   value: soundEnabled,
                   onChanged: (v) {
                     onSoundChanged(v);
@@ -458,19 +483,25 @@ class HomePage extends StatelessWidget {
                   },
                 ),
                 SwitchListTile(
-                  title: const Text('الاهتزاز'),
+                  title: const Text(
+                    'الاهتزاز',
+                    style: TextStyle(color: Colors.white),
+                  ),
                   value: vibrationEnabled,
                   onChanged: (v) {
                     onVibrationChanged(v);
                     setSheet(() {});
                   },
                 ),
-                const Divider(),
+                const Divider(color: Colors.white24),
                 const Align(
                   alignment: Alignment.centerRight,
                   child: Text(
                     'خلفية التطبيق',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -517,8 +548,8 @@ class HomePage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xff2b2018),
-        title: Text('قواعد ثبّت', style: TextStyle(color: theme.lines)),
+        backgroundColor: const Color(0xff2b2c2e),
+        title: Text('قواعد ثبّت', style: TextStyle(color: theme.accent)),
         content: const SingleChildScrollView(
           child: Text(
             '• لكل لاعب 12 حجرًا.\n\n'
@@ -533,7 +564,7 @@ class HomePage extends StatelessWidget {
             '• عند تكوين ثبّت جديد، تزال قطعة من الخصم.\n\n'
             '• يمكن إزالة أي حجر من أحجار الخصم.\n\n'
             '• الفوز بإزالة جميع أحجار الخصم أو منعه من الحركة.',
-            style: TextStyle(height: 1.6),
+            style: TextStyle(height: 1.6, color: Colors.white),
           ),
         ),
         actions: [
@@ -626,13 +657,6 @@ class _GamePageState extends State<GamePage> {
   bool showHint = false;
   bool replayMode = false;
 
-  // بيانات حركة الحجر المتحركة.
-  bool isMoving = false;
-  bool movementArrived = false;
-  int? movingFrom;
-  int? movingTo;
-  int? movingPlayer;
-
   bool millCelebration = false;
   List<int> highlightedMill = [];
   Timer? millTimer;
@@ -653,13 +677,11 @@ class _GamePageState extends State<GamePage> {
   @override
   void initState() {
     super.initState();
-
     starter = nextStarter;
     turn = starter;
     status = 'دور ${playerName(turn)}: ضع حجرًا';
 
     edges = [];
-
     for (int r = 0; r < 3; r++) {
       final b = r * 8;
       for (int i = 0; i < 8; i++) {
@@ -673,7 +695,6 @@ class _GamePageState extends State<GamePage> {
     }
 
     near = List.generate(24, (_) => []);
-
     for (final e in edges) {
       near[e[0]].add(e[1]);
       near[e[1]].add(e[0]);
@@ -692,7 +713,6 @@ class _GamePageState extends State<GamePage> {
 
   List<List<int>> _createMills() {
     final result = <List<int>>[];
-
     for (int r = 0; r < 3; r++) {
       final b = r * 8;
       result.addAll([
@@ -732,7 +752,6 @@ class _GamePageState extends State<GamePage> {
     if (formed == null) return;
 
     millTimer?.cancel();
-
     setState(() {
       highlightedMill = List<int>.from(formed);
       millCelebration = true;
@@ -764,41 +783,30 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _saveHistory() {
-    history.add(List<int>.from(board));
+    history.add(List.from(board));
   }
 
   void _scheduleComputer() {
     aiTimer?.cancel();
-
     if (!widget.computerMode ||
         turn != 2 ||
         winner != null ||
         paused ||
-        replayMode ||
-        isMoving) {
+        replayMode) {
       return;
     }
 
     aiTimer = Timer(const Duration(milliseconds: 650), () {
-      if (!mounted ||
-          paused ||
-          turn != 2 ||
-          winner != null ||
-          isMoving) {
-        return;
-      }
+      if (!mounted || paused || turn != 2 || winner != null) return;
       _computerMove();
     });
   }
 
   void _computerMove() {
-    if (isMoving) return;
-
     if (pendingRemoval == 2) {
       _computerRemove();
       return;
     }
-
     if (pendingRemoval == 1 || winner != null) return;
 
     if (phase == 0) {
@@ -810,7 +818,6 @@ class _GamePageState extends State<GamePage> {
 
   void _computerPlace() {
     final options = <int>[];
-
     for (int i = 0; i < 24; i++) {
       if (board[i] == 0) options.add(i);
     }
@@ -861,10 +868,7 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _computerMoveStone() {
-    if (isMoving) return;
-
     final moves = <List<int>>[];
-
     for (int i = 0; i < 24; i++) {
       if (board[i] == 2) {
         for (final n in near[i]) {
@@ -913,12 +917,25 @@ class _GamePageState extends State<GamePage> {
       }
     }
 
-    _moveStone(chosen[0], chosen[1]);
+    setState(() {
+      board[chosen[0]] = 0;
+      board[chosen[1]] = 2;
+      _saveHistory();
+
+      if (hasMill(chosen[1], 2)) {
+        pendingRemoval = 2;
+        status = 'الكمبيوتر كوّن ثبّت!';
+        _celebrateMill(chosen[1], 2);
+      } else {
+        _endTurn();
+      }
+    });
+
+    _scheduleComputer();
   }
 
   void _computerRemove() {
     final targets = <int>[];
-
     for (int i = 0; i < 24; i++) {
       if (board[i] == 1) targets.add(i);
     }
@@ -968,7 +985,6 @@ class _GamePageState extends State<GamePage> {
     if (initialRemovalPhase) {
       if (!firstInitialRemovalDone) {
         firstInitialRemovalDone = true;
-
         final next = 3 - remover;
         turn = next;
         pendingRemoval = next;
@@ -996,17 +1012,6 @@ class _GamePageState extends State<GamePage> {
       return;
     }
 
-    // الفوز عند بقاء حجرين أو أقل للخصم.
-    final opponent = 3 - remover;
-    final opponentCount = opponent == 1 ? playerCount : computerCount;
-
-    if (opponentCount <= 2) {
-      winner = remover;
-      phase = 2;
-      status = 'فاز ${playerName(remover)}! لم يتبقَّ للخصم سوى حجرين.';
-      return;
-    }
-
     if (board.every((v) => v != 3 - remover)) {
       winner = remover;
       phase = 2;
@@ -1022,7 +1027,6 @@ class _GamePageState extends State<GamePage> {
   void _removeStone(int index) {
     if (pendingRemoval == null) return;
     if (board[index] != 3 - pendingRemoval!) return;
-
     final remover = pendingRemoval!;
 
     setState(() {
@@ -1047,7 +1051,6 @@ class _GamePageState extends State<GamePage> {
 
   void _checkNextTurn() {
     selected = null;
-
     if (board.every((v) => v != turn)) {
       winner = 3 - turn;
       phase = 2;
@@ -1067,7 +1070,6 @@ class _GamePageState extends State<GamePage> {
 
   void _placeStone(int index) {
     if (board[index] != 0) return;
-
     setState(() {
       board[index] = turn;
 
@@ -1090,76 +1092,34 @@ class _GamePageState extends State<GamePage> {
     widget.vibrate();
   }
 
-  // بدء حركة الحجر فعليًا دون نقله مباشرة إلى الوجهة.
   void _moveStone(int from, int to) {
-    if (isMoving || paused || winner != null || replayMode) return;
     if (board[from] != turn || board[to] != 0) return;
     if (!near[from].contains(to)) return;
-
-    final player = turn;
-
-    aiTimer?.cancel();
-
     setState(() {
-      isMoving = true;
-      movementArrived = false;
-      movingFrom = from;
-      movingTo = to;
-      movingPlayer = player;
-
       board[from] = 0;
-
+      board[to] = turn;
       selected = null;
       showHint = false;
       hintDestination = null;
-    });
-
-    widget.sound();
-    widget.vibrate();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !isMoving) return;
-
-      setState(() {
-        movementArrived = true;
-      });
-    });
-  }
-
-  // إنهاء الحركة بعد وصول الحجر إلى النقطة الجديدة.
-  void _finishAnimatedMove() {
-    if (!mounted || !isMoving || movingTo == null || movingPlayer == null) {
-      return;
-    }
-
-    final to = movingTo!;
-    final player = movingPlayer!;
-
-    setState(() {
-      board[to] = player;
-
-      isMoving = false;
-      movementArrived = false;
-      movingFrom = null;
-      movingTo = null;
-      movingPlayer = null;
 
       _saveHistory();
 
-      if (hasMill(to, player)) {
-        pendingRemoval = player;
-        status = 'ثبّت! اختر حجرًا من ${playerName(3 - player)} لإزالته.';
-        _celebrateMill(to, player);
+      if (hasMill(to, turn)) {
+        pendingRemoval = turn;
+        status = 'ثبّت! اختر حجرًا من ${playerName(3 - turn)} لإزالته.';
+        _celebrateMill(to, turn);
       } else {
         _endTurn();
       }
     });
+
+    widget.sound();
+    widget.vibrate();
   }
 
   void _tapNode(int index) {
-    if (paused || winner != null || replayMode || isMoving) return;
+    if (paused || winner != null || replayMode) return;
     if (widget.computerMode && turn == 2) return;
-
     if (pendingRemoval != null) {
       widget.sound();
       widget.vibrate();
@@ -1174,23 +1134,35 @@ class _GamePageState extends State<GamePage> {
       if (board[index] == 0) {
         _placeStone(index);
       }
+    } else if (phase == 1) {
+      if (board[index] == turn) {
+        setState(() {
+          selected = selected == index ? null : index;
+          showHint = false;
+          hintDestination = null;
+        });
+        widget.sound();
+        widget.vibrate();
+      } else if (selected != null &&
+          board[index] == 0 &&
+          near[selected!].contains(index)) {
+        _moveStone(selected!, index);
+      }
     }
   }
 
   void _dragMove(int from, int to) {
-    if (paused || winner != null || replayMode || isMoving) return;
+    if (paused || winner != null || replayMode) return;
     if (widget.computerMode && turn == 2) return;
     if (pendingRemoval != null || phase != 1) return;
     if (board[from] != turn || board[to] != 0) return;
     if (!near[from].contains(to)) return;
-
     _moveStone(from, to);
   }
 
   void _restart() {
     aiTimer?.cancel();
     millTimer?.cancel();
-
     setState(() {
       starter = 3 - starter;
       nextStarter = starter;
@@ -1219,12 +1191,6 @@ class _GamePageState extends State<GamePage> {
       seconds = 0;
       paused = false;
 
-      isMoving = false;
-      movementArrived = false;
-      movingFrom = null;
-      movingTo = null;
-      movingPlayer = null;
-
       millCelebration = false;
       highlightedMill.clear();
 
@@ -1236,9 +1202,8 @@ class _GamePageState extends State<GamePage> {
 
   void _hint() {
     if (!widget.computerMode) return;
-    if (winner != null || turn != 1 || paused || isMoving) return;
+    if (winner != null || turn != 1 || paused) return;
     if (pendingRemoval != null) return;
-
     int? best;
     int? fromBest;
 
@@ -1318,8 +1283,7 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _pause() {
-    if (winner != null || replayMode || isMoving) return;
-
+    if (winner != null || replayMode) return;
     setState(() {
       paused = !paused;
       status = paused ? 'اللعبة متوقفة مؤقتًا' : 'تم استئناف اللعب';
@@ -1333,10 +1297,8 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _replay() {
-    if (history.isEmpty || isMoving) return;
-
+    if (history.isEmpty) return;
     aiTimer?.cancel();
-
     setState(() {
       replayMode = true;
       replayIndex = 0;
@@ -1346,10 +1308,8 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _replayStep(int step) {
-    if (history.isEmpty || isMoving) return;
-
+    if (history.isEmpty) return;
     final next = (replayIndex + step).clamp(0, history.length - 1);
-
     setState(() {
       replayIndex = next;
       board = List<int>.from(history[next]);
@@ -1374,16 +1334,20 @@ class _GamePageState extends State<GamePage> {
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
+    final isDarkBg =
+        ThemeData.estimateBrightnessForColor(widget.appBackground) ==
+            Brightness.dark;
 
     return Scaffold(
       backgroundColor: widget.appBackground,
       appBar: AppBar(
-        backgroundColor: t.wood,
-        foregroundColor: t.lines,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: isDarkBg ? Colors.white : Colors.black87,
         centerTitle: true,
         title: const Text(
           'ثبّت • BAHMAD THABET',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         actions: [
           IconButton(
@@ -1391,157 +1355,197 @@ class _GamePageState extends State<GamePage> {
             icon: Icon(paused ? Icons.play_arrow : Icons.pause),
             onPressed: _pause,
           ),
+          IconButton(
+            tooltip: 'مباراة جديدة',
+            icon: const Icon(Icons.refresh),
+            onPressed: _restart,
+          ),
         ],
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final availableWidth = math.max(0.0, constraints.maxWidth - 32);
-            final availableHeight = math.max(0.0, constraints.maxHeight);
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDarkBg
+                ? [
+                    widget.appBackground,
+                    const Color(0xff171819),
+                  ]
+                : [
+                    widget.appBackground,
+                    widget.appBackground.withOpacity(0.88),
+                  ],
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final availableWidth = math.max(0.0, constraints.maxWidth - 28);
+              final availableHeight = math.max(0.0, constraints.maxHeight);
 
-            final boardSize = math.min(
-              availableWidth,
-              availableHeight * .66,
-            ).clamp(0.0, 600.0);
+              final boardSize = math.min(
+                availableWidth,
+                availableHeight * .62,
+              ).clamp(0.0, 560.0);
 
-            return Column(
-              children: [
-                const SizedBox(height: 8),
-                _playerPanel(
-                  label: widget.computerMode ? 'الكمبيوتر' : 'الأسود',
-                  count: computerCount,
-                  placed: blackPlaced,
-                  player: 2,
-                  active: turn == 2,
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 7,
+              return Column(
+                children: [
+                  const SizedBox(height: 4),
+                  _playerPanel(
+                    label: widget.computerMode ? 'الكمبيوتر' : 'الأسود',
+                    count: computerCount,
+                    placed: blackPlaced,
+                    player: 2,
+                    active: turn == 2,
                   ),
-                  child: Container(
-                    width: double.infinity,
-                    height: 68,
+
+                  // شريط الحالة والوقت بلمسة ناعمة مشابهة للفيديو.
+                  Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                      horizontal: 16,
+                      vertical: 5,
                     ),
-                    decoration: BoxDecoration(
-                      color: t.wood,
-                      borderRadius: BorderRadius.circular(13),
-                      border: Border.all(color: t.lines.withOpacity(.65)),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          height: 36,
-                          child: Center(
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 220),
-                              switchInCurve: Curves.easeOutCubic,
-                              switchOutCurve: Curves.easeInCubic,
-                              child: Text(
-                                status,
-                                key: ValueKey(status),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: Colors.white,
+                    child: Container(
+                      width: double.infinity,
+                      height: 60,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDarkBg
+                            ? Colors.white.withOpacity(.06)
+                            : Colors.black.withOpacity(.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDarkBg
+                              ? Colors.white.withOpacity(.1)
+                              : Colors.black.withOpacity(.08),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            height: 32,
+                            child: Center(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 220),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                child: Text(
+                                  status,
+                                  key: ValueKey(status),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: isDarkBg
+                                        ? Colors.white
+                                        : Colors.black87,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
+                          Text(
+                            'الوقت: ${_formatTime()}',
+                            style: TextStyle(
+                              color: isDarkBg
+                                  ? Colors.white60
+                                  : Colors.black54,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  Expanded(
+                    child: Center(
+                      child: SizedBox(
+                        width: boardSize,
+                        height: boardSize,
+                        child: _boardWidget(boardSize),
+                      ),
+                    ),
+                  ),
+
+                  _playerPanel(
+                    label: 'الأبيض',
+                    count: playerCount,
+                    placed: whitePlaced,
+                    player: 1,
+                    active: turn == 1,
+                  ),
+
+                  if (replayMode)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          onPressed: () => _replayStep(-1),
+                          icon: Icon(
+                            Icons.skip_previous,
+                            color: isDarkBg ? Colors.white : Colors.black87,
+                          ),
                         ),
                         Text(
-                          'الوقت: ${_formatTime()}',
+                          '${replayIndex + 1} / ${history.length}',
                           style: TextStyle(
-                            color: t.lines.withOpacity(.8),
-                            fontSize: 11,
+                            color: isDarkBg ? Colors.white : Colors.black87,
                           ),
+                        ),
+                        IconButton(
+                          onPressed: () => _replayStep(1),
+                          icon: Icon(
+                            Icons.skip_next,
+                            color: isDarkBg ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              replayMode = false;
+                              status = 'تم إغلاق إعادة العرض';
+                            });
+                          },
+                          child: const Text('إغلاق'),
+                        ),
+                      ],
+                    ),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 6,
+                      runSpacing: 3,
+                      children: [
+                        if (widget.computerMode && !replayMode)
+                          _actionButton(
+                            'تلميح',
+                            Icons.lightbulb_outline,
+                            _hint,
+                          ),
+                        _actionButton('إعادة العرض', Icons.replay, _replay),
+                        _actionButton('مباراة جديدة', Icons.refresh, _restart),
+                        _actionButton(
+                          'الرئيسية',
+                          Icons.home,
+                          () => Navigator.pop(context),
                         ),
                       ],
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: SizedBox(
-                      width: boardSize,
-                      height: boardSize,
-                      child: _boardWidget(boardSize),
-                    ),
-                  ),
-                ),
-                _playerPanel(
-                  label: 'الأبيض',
-                  count: playerCount,
-                  placed: whitePlaced,
-                  player: 1,
-                  active: turn == 1,
-                ),
-                if (replayMode)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        onPressed: () => _replayStep(-1),
-                        icon: const Icon(Icons.skip_previous),
-                      ),
-                      Text(
-                        '${replayIndex + 1} / ${history.length}',
-                        style: TextStyle(
-                          color: ThemeData.estimateBrightnessForColor(
-                            widget.appBackground,
-                          ) == Brightness.dark
-                              ? Colors.white
-                              : Colors.black,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => _replayStep(1),
-                        icon: const Icon(Icons.skip_next),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            replayMode = false;
-                            status = 'تم إغلاق إعادة العرض';
-                          });
-                        },
-                        child: const Text('إغلاق'),
-                      ),
-                    ],
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 5, 8, 9),
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 6,
-                    runSpacing: 3,
-                    children: [
-                      if (widget.computerMode && !replayMode)
-                        _actionButton(
-                          'تلميح',
-                          Icons.lightbulb_outline,
-                          _hint,
-                        ),
-                      _actionButton('إعادة العرض', Icons.replay, _replay),
-                      _actionButton('مباراة جديدة', Icons.refresh, _restart),
-                      _actionButton(
-                        'الرئيسية',
-                        Icons.home,
-                        () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -1549,7 +1553,6 @@ class _GamePageState extends State<GamePage> {
 
   Widget _boardWidget(double size) {
     final t = widget.theme;
-
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -1573,28 +1576,9 @@ class _GamePageState extends State<GamePage> {
           ),
         ),
         for (int i = 0; i < 24; i++) _stoneWidget(i, size),
-
-        // الحجر المتحرك فوق اللوحة.
-        if (isMoving &&
-            movingFrom != null &&
-            movingTo != null &&
-            movingPlayer != null)
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 420),
-            curve: Curves.easeInOutCubic,
-            left: points[movementArrived ? movingTo! : movingFrom!].dx *
-                    size -
-                size * .076 / 2,
-            top: points[movementArrived ? movingTo! : movingFrom!].dy *
-                    size -
-                size * .076 / 2,
-            onEnd: _finishAnimatedMove,
-            child: _movingStoneWidget(movingPlayer!, size * .076),
-          ),
-
         if (millCelebration)
           Positioned(
-            top: 8,
+            top: 10,
             left: 0,
             right: 0,
             child: IgnorePointer(
@@ -1604,27 +1588,29 @@ class _GamePageState extends State<GamePage> {
                   duration: const Duration(milliseconds: 250),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 15,
+                      horizontal: 16,
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xff321b0b).withOpacity(.88),
+                      color: const Color(0xff232425).withOpacity(.92),
                       borderRadius: BorderRadius.circular(30),
                       border: Border.all(
-                        color: const Color(0xffffd36b).withOpacity(.75),
+                        color: Colors.white.withOpacity(.65),
+                        width: 1.2,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xffffcf54).withOpacity(.18),
-                          blurRadius: 12,
+                          color: Colors.white.withOpacity(.25),
+                          blurRadius: 14,
+                          spreadRadius: 1,
                         ),
                       ],
                     ),
                     child: const Text(
                       'ثبّت!',
                       style: TextStyle(
-                        color: Color(0xffffdc83),
-                        fontSize: 16,
+                        color: Colors.white,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1637,81 +1623,10 @@ class _GamePageState extends State<GamePage> {
     );
   }
 
-  // تصميم الحجر أثناء انتقاله بين النقطتين.
-  Widget _movingStoneWidget(int player, double stoneSize) {
-    return IgnorePointer(
-      child: Container(
-        width: stoneSize,
-        height: stoneSize,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: player == 1
-              ? const RadialGradient(
-                  center: Alignment(-.35, -.4),
-                  radius: .95,
-                  colors: [
-                    Color(0xffffffff),
-                    Color(0xfff2f2f2),
-                    Color(0xffc2c2c2),
-                    Color(0xff8c8c8c),
-                  ],
-                  stops: [0, .3, .68, 1],
-                )
-              : const RadialGradient(
-                  center: Alignment(-.35, -.4),
-                  radius: .95,
-                  colors: [
-                    Color(0xff757575),
-                    Color(0xff242424),
-                    Color(0xff0a0a0a),
-                    Color(0xff000000),
-                  ],
-                  stops: [0, .22, .55, 1],
-                ),
-          border: Border.all(
-            color: player == 1
-                ? const Color(0xffeeeeee)
-                : const Color(0xff555555),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(.45),
-              blurRadius: 9,
-              spreadRadius: 1,
-              offset: const Offset(1, 3),
-            ),
-          ],
-        ),
-        child: Align(
-          alignment: const Alignment(-.35, -.4),
-          child: Container(
-            width: stoneSize * .22,
-            height: stoneSize * .16,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(player == 1 ? .9 : .35),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.white.withOpacity(.25),
-                  blurRadius: 5,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _stoneWidget(int i, double size) {
     final t = widget.theme;
-
-    // إخفاء الحجر الأصلي أثناء تحريكه حتى لا يظهر مرتين.
-    final isMovingPoint =
-        isMoving && (i == movingFrom || i == movingTo);
-    final value = isMovingPoint ? 0 : board[i];
-
+    final value = board[i];
+    final isSelected = selected == i && value == turn;
     final isHint = showHint && hintDestination == i;
     final isMill = highlightedMill.contains(i);
 
@@ -1720,101 +1635,127 @@ class _GamePageState extends State<GamePage> {
         phase == 1 &&
         pendingRemoval == null;
 
+    final canRemovable = pendingRemoval != null && value == 3 - pendingRemoval!;
+
     final canDrag = !paused &&
         !replayMode &&
-        !isMoving &&
         winner == null &&
         pendingRemoval == null &&
         phase == 1 &&
-        board[i] == turn &&
+        value == turn &&
         !(widget.computerMode && turn == 2);
 
-    final stoneSize = size * .076;
+    // حجم الحجر قريب من حجم الأحجار في الفيديو.
+    final stoneSize = size * .082;
 
     final stone = AnimatedContainer(
-      duration: const Duration(milliseconds: 320),
+      duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
       width: stoneSize,
       height: stoneSize,
+      transform: Matrix4.identity()
+        ..scale(isSelected ? 1.12 : (isMill ? 1.06 : 1.0)),
+      transformAlignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: value == 1
             ? const RadialGradient(
-                center: Alignment(-.35, -.4),
-                radius: .95,
+                center: Alignment(-.3, -.35),
+                radius: .9,
                 colors: [
                   Color(0xffffffff),
-                  Color(0xfff2f2f2),
-                  Color(0xffc2c2c2),
-                  Color(0xff8c8c8c),
+                  Color(0xfff5f5f5),
+                  Color(0xffdedede),
+                  Color(0xffbdbdbd),
                 ],
-                stops: [0, .3, .68, 1],
+                stops: [0, .35, .75, 1],
               )
             : value == 2
                 ? const RadialGradient(
-                    center: Alignment(-.35, -.4),
-                    radius: .95,
+                    center: Alignment(-.3, -.35),
+                    radius: .9,
                     colors: [
-                      Color(0xff757575),
-                      Color(0xff242424),
-                      Color(0xff0a0a0a),
-                      Color(0xff000000),
+                      Color(0xff5c5d5f),
+                      Color(0xff2c2d2f),
+                      Color(0xff161718),
+                      Color(0xff0b0b0c),
                     ],
-                    stops: [0, .22, .55, 1],
+                    stops: [0, .25, .65, 1],
                   )
                 : null,
         color: value == 0
             ? (isLegal || isHint
-                ? t.accent.withOpacity(.8)
-                : const Color(0xff3d2916))
+                ? Colors.white.withOpacity(.85)
+                : Colors.transparent)
             : null,
         border: Border.all(
           color: isMill
-              ? const Color(0xffffe27a)
-              : isHint
-                  ? Colors.greenAccent
-                  : value == 0
-                      ? const Color(0xff8c6844)
-                      : value == 1
-                          ? const Color(0xffeeeeee)
-                          : const Color(0xff555555),
-          width: isMill || isHint ? 2.5 : 1.2,
+              ? Colors.white
+              : isSelected
+                  ? Colors.white
+                  : isHint
+                      ? Colors.white
+                      : isLegal
+                          ? Colors.white
+                          : canRemovable
+                              ? Colors.redAccent.withOpacity(.85)
+                              : value == 1
+                                  ? const Color(0xffe0e0e0)
+                                  : value == 2
+                                      ? const Color(0xff3c3d3f)
+                                      : Colors.transparent,
+          width: isMill || isSelected || isHint || isLegal
+              ? 2.4
+              : canRemovable
+                  ? 2.0
+                  : 1.0,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isMill
-                ? const Color(0xffffd34e).withOpacity(.45)
-                : isHint
-                    ? Colors.greenAccent.withOpacity(.7)
-                    : Colors.black.withOpacity(.4),
-            blurRadius: isMill || isHint ? 11 : 7,
-            spreadRadius: isMill || isHint ? 2 : 1,
-            offset: const Offset(1, 3),
-          ),
-        ],
+        boxShadow: value == 0 && !(isLegal || isHint)
+            ? []
+            : [
+                BoxShadow(
+                  color: isMill || isSelected || isHint || isLegal
+                      ? Colors.white.withOpacity(.55)
+                      : Colors.black.withOpacity(.45),
+                  blurRadius: isMill || isSelected || isHint || isLegal
+                      ? 12
+                      : 6,
+                  spreadRadius: isMill || isSelected || isHint || isLegal
+                      ? 2
+                      : 0.5,
+                  offset: const Offset(0, 3),
+                ),
+              ],
       ),
       child: value == 0
-          ? null
+          ? (isLegal || isHint
+              ? Center(
+                  child: Container(
+                    width: stoneSize * .28,
+                    height: stoneSize * .28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: t.lines.withOpacity(.75),
+                    ),
+                  ),
+                )
+              : null)
           : Align(
-              alignment: const Alignment(-.35, -.4),
+              alignment: const Alignment(-.3, -.35),
               child: Container(
                 width: stoneSize * .22,
-                height: stoneSize * .16,
+                height: stoneSize * .15,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(value == 1 ? .9 : .35),
+                  color: Colors.white.withOpacity(value == 1 ? .85 : .25),
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.white.withOpacity(.25),
-                      blurRadius: 5,
-                    ),
-                  ],
                 ),
               ),
             ),
     );
 
-    return Positioned(
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
       left: points[i].dx * size - stoneSize / 2,
       top: points[i].dy * size - stoneSize / 2,
       child: DragTarget<int>(
@@ -1823,7 +1764,6 @@ class _GamePageState extends State<GamePage> {
 
           return !paused &&
               !replayMode &&
-              !isMoving &&
               winner == null &&
               pendingRemoval == null &&
               phase == 1 &&
@@ -1839,15 +1779,35 @@ class _GamePageState extends State<GamePage> {
           _dragMove(details.data, i);
         },
         builder: (context, candidates, rejected) {
+          final isHoverTarget = candidates.isNotEmpty;
+          final displayStone = isHoverTarget
+              ? Container(
+                  width: stoneSize * 1.12,
+                  height: stoneSize * 1.12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(.45),
+                    border: Border.all(color: Colors.white, width: 2.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.white.withOpacity(.65),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                )
+              : stone;
+
           return Draggable<int>(
             data: i,
             maxSimultaneousDrags: canDrag ? 1 : 0,
             feedback: Material(
               color: Colors.transparent,
               child: SizedBox(
-                width: stoneSize,
-                height: stoneSize,
-                child: stone,
+                width: stoneSize * 1.1,
+                height: stoneSize * 1.1,
+                child: Center(child: stone),
               ),
             ),
             childWhenDragging: Opacity(
@@ -1856,11 +1816,11 @@ class _GamePageState extends State<GamePage> {
             ),
             child: GestureDetector(
               onTap: () {
-                if (pendingRemoval != null || phase == 0) {
+                if (pendingRemoval != null || phase == 0 || phase == 1) {
                   _tapNode(i);
                 }
               },
-              child: stone,
+              child: displayStone,
             ),
           );
         },
@@ -1871,7 +1831,6 @@ class _GamePageState extends State<GamePage> {
   int? _nearestPoint(Offset pos, double size) {
     int best = 0;
     double distance = double.infinity;
-
     for (int i = 0; i < 24; i++) {
       final target = Offset(points[i].dx * size, points[i].dy * size);
       final d = (target - pos).distance;
@@ -1882,7 +1841,7 @@ class _GamePageState extends State<GamePage> {
       }
     }
 
-    return distance < size * .09 ? best : null;
+    return distance < size * .095 ? best : null;
   }
 
   Widget _playerPanel({
@@ -1893,30 +1852,39 @@ class _GamePageState extends State<GamePage> {
     required bool active,
   }) {
     final t = widget.theme;
+    final isDarkBg =
+        ThemeData.estimateBrightnessForColor(widget.appBackground) ==
+            Brightness.dark;
     final remaining = (12 - placed).clamp(0, 12);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: t.wood,
-        borderRadius: BorderRadius.circular(13),
+        color: isDarkBg
+            ? Colors.white.withOpacity(active ? .09 : .04)
+            : Colors.black.withOpacity(active ? .08 : .04),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: active ? t.accent : t.lines.withOpacity(.35),
-          width: active ? 2 : 1,
+          color: active
+              ? (isDarkBg ? Colors.white.withOpacity(.55) : t.accent)
+              : (isDarkBg
+                  ? Colors.white.withOpacity(.1)
+                  : Colors.black.withOpacity(.08)),
+          width: active ? 1.6 : 1,
         ),
         boxShadow: active
             ? [
                 BoxShadow(
-                  color: t.accent.withOpacity(.18),
-                  blurRadius: 12,
+                  color: Colors.white.withOpacity(isDarkBg ? .08 : .0),
+                  blurRadius: 10,
                 ),
               ]
             : [],
       ),
       child: Row(
         children: [
-          _playerBall(player, 25),
+          _playerBall(player, 24),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
@@ -1927,16 +1895,20 @@ class _GamePageState extends State<GamePage> {
                   label,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: active ? t.accent : Colors.white,
+                    color: active
+                        ? (isDarkBg ? Colors.white : Colors.black)
+                        : (isDarkBg ? Colors.white70 : Colors.black87),
                     fontSize: 12,
                   ),
                 ),
-                const SizedBox(height: 7),
+                const SizedBox(height: 6),
+
+                // الأحجار المتبقية تظهر ككرات فعلية مشابهة للفيديو.
                 SizedBox(
-                  height: 17,
+                  height: 16,
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      const ballSize = 13.0;
+                      const ballSize = 12.5;
                       const spacing = 4.0;
 
                       final available = constraints.maxWidth;
@@ -1958,7 +1930,7 @@ class _GamePageState extends State<GamePage> {
                               right: index == 11 ? 0 : actualSpacing,
                             ),
                             child: AnimatedOpacity(
-                              opacity: visible ? 1 : 0.12,
+                              opacity: visible ? 1 : 0.14,
                               duration: const Duration(milliseconds: 250),
                               child: _playerBall(player, actualBall),
                             ),
@@ -1974,19 +1946,35 @@ class _GamePageState extends State<GamePage> {
           Text(
             '$count',
             style: TextStyle(
-              fontSize: 21,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: t.lines,
+              color: isDarkBg ? Colors.white : Colors.black87,
             ),
           ),
           const SizedBox(width: 4),
-          const Text(
+          Text(
             'حجر',
-            style: TextStyle(fontSize: 11, color: Colors.white70),
+            style: TextStyle(
+              fontSize: 11,
+              color: isDarkBg ? Colors.white60 : Colors.black54,
+            ),
           ),
           if (active) ...[
             const SizedBox(width: 7),
-            Icon(Icons.circle, color: t.accent, size: 9),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.white.withOpacity(.7),
+                    blurRadius: 6,
+                  ),
+                ],
+              ),
+            ),
           ],
         ],
       ),
@@ -2001,26 +1989,32 @@ class _GamePageState extends State<GamePage> {
         shape: BoxShape.circle,
         gradient: player == 1
             ? const RadialGradient(
-                center: Alignment(-.35, -.4),
+                center: Alignment(-.3, -.35),
                 colors: [
                   Colors.white,
-                  Color(0xffdedede),
-                  Color(0xff777777),
+                  Color(0xffececec),
+                  Color(0xffbdbdbd),
                 ],
               )
             : const RadialGradient(
-                center: Alignment(-.35, -.4),
+                center: Alignment(-.3, -.35),
                 colors: [
-                  Color(0xff888888),
-                  Color(0xff333333),
-                  Colors.black,
+                  Color(0xff5c5d5f),
+                  Color(0xff262729),
+                  Color(0xff0b0b0c),
                 ],
               ),
+        border: Border.all(
+          color: player == 1
+              ? const Color(0xffe0e0e0)
+              : const Color(0xff3c3d3f),
+          width: 0.8,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.55),
+            color: Colors.black.withOpacity(.45),
             blurRadius: size * .22,
-            offset: Offset(1, size * .08),
+            offset: Offset(0, size * .12),
           ),
         ],
       ),
@@ -2028,13 +2022,23 @@ class _GamePageState extends State<GamePage> {
   }
 
   Widget _actionButton(String title, IconData icon, VoidCallback action) {
+    final isDarkBg =
+        ThemeData.estimateBrightnessForColor(widget.appBackground) ==
+            Brightness.dark;
     return OutlinedButton.icon(
       onPressed: action,
       icon: Icon(icon, size: 17),
       label: Text(title, style: const TextStyle(fontSize: 12)),
       style: OutlinedButton.styleFrom(
-        foregroundColor: widget.theme.accent,
-        side: BorderSide(color: widget.theme.accent.withOpacity(.6)),
+        foregroundColor: isDarkBg ? Colors.white : Colors.black87,
+        backgroundColor: isDarkBg
+            ? Colors.white.withOpacity(.04)
+            : Colors.black.withOpacity(.03),
+        side: BorderSide(
+          color: isDarkBg
+              ? Colors.white.withOpacity(.22)
+              : Colors.black.withOpacity(.2),
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
         minimumSize: const Size(0, 34),
       ),
@@ -2061,85 +2065,67 @@ class BoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
+    // ظل ناعم للوحة على الخلفية الداكنة.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         rect.deflate(2),
-        const Radius.circular(18),
+        const Radius.circular(20),
       ),
       Paint()
-        ..color = Colors.black.withOpacity(.45)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+        ..color = Colors.black.withOpacity(.55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
     );
 
-    final boardRect = rect.deflate(3);
+    final boardRect = rect.deflate(4);
 
+    // سطح خشبي دافئ متدرج بلطف مثل الفيديو.
     final woodPaint = Paint()
-      ..shader = const LinearGradient(
+      ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          Color(0xffd5b17c),
-          Color(0xffbd9360),
-          Color(0xffd9b987),
-          Color(0xffb88a57),
+          theme.wood.withOpacity(.96),
+          theme.wood,
+          Color.lerp(theme.wood, Colors.black, 0.08)!,
         ],
       ).createShader(boardRect);
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         boardRect,
-        const Radius.circular(16),
+        const Radius.circular(18),
       ),
       woodPaint,
     );
 
-    final grainPaint = Paint()
-      ..color = const Color(0xff8b6038).withOpacity(.28)
-      ..strokeWidth = size.width * .003;
-
-    for (int i = 0; i < 30; i++) {
-      final y = size.height * i / 30;
-      canvas.drawLine(
-        Offset(size.width * .01, y),
-        Offset(size.width * .99, y),
-        grainPaint,
-      );
-    }
-
-    final fineGrain = Paint()
-      ..color = const Color(0xffffe2b0).withOpacity(.3)
-      ..strokeWidth = size.width * .002;
-
-    for (int i = 0; i < 20; i++) {
-      final y = size.height * (i + .5) / 20;
-      canvas.drawLine(
-        Offset(size.width * .04, y),
-        Offset(size.width * .96, y + size.height * .002),
-        fineGrain,
-      );
-    }
+    // حواف بارزة خفيفة لإعطاء عمق اللوحة الخشبية.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        boardRect,
+        const Radius.circular(18),
+      ),
+      Paint()
+        ..color = Colors.white.withOpacity(.28)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = size.width * .006,
+    );
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        rect.deflate(size.width * .01),
-        const Radius.circular(15),
+        boardRect.deflate(size.width * .006),
+        const Radius.circular(17),
       ),
       Paint()
-        ..color = const Color(0xff141414)
+        ..color = theme.lines.withOpacity(.35)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = size.width * .02,
+        ..strokeWidth = size.width * .005,
     );
 
-    final lineGlow = Paint()
-      ..color = const Color(0xff592616).withOpacity(.2)
-      ..strokeWidth = size.width * .025
-      ..strokeCap = StrokeCap.square
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-
+    // خطوط الشبكة البنية الواضحة.
     final boardLines = Paint()
-      ..color = const Color(0xff592616)
-      ..strokeWidth = size.width * .009
-      ..strokeCap = StrokeCap.square
+      ..color = theme.lines
+      ..strokeWidth = size.width * .011
+      ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
     for (final edge in edges) {
@@ -2153,45 +2139,35 @@ class BoardPainter extends CustomPainter {
         points[edge[1]].dy * size.height,
       );
 
-      canvas.drawLine(a, b, lineGlow);
       canvas.drawLine(a, b, boardLines);
     }
 
+    // نقاط التقاطع الصغيرة على اللوحة.
     for (final point in points) {
       final center = Offset(
         point.dx * size.width,
         point.dy * size.height,
       );
 
-      final radius = size.width * (19 / 600);
+      final radius = size.width * (12 / 600);
 
-      final holePaint = Paint()
-        ..shader = const RadialGradient(
-          center: Alignment(0, .1),
-          radius: .9,
-          colors: [
-            Color(0xff2b1d10),
-            Color(0xff3d2916),
-            Color(0xff24170c),
-            Color(0xff8c6844),
-          ],
-          stops: [0, .65, .88, 1],
-        ).createShader(
-          Rect.fromCircle(center: center, radius: radius),
-        );
-
-      canvas.drawCircle(center, radius, holePaint);
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()..color = theme.points,
+      );
 
       canvas.drawCircle(
         center,
         radius,
         Paint()
-          ..color = const Color(0xff52381e)
+          ..color = theme.lines
           ..style = PaintingStyle.stroke
-          ..strokeWidth = size.width * .0025,
+          ..strokeWidth = size.width * .005,
       );
     }
 
+    // إضاءة متوهجة عند تكوين ثبّت (3 أحجار متتالية).
     if (millCelebration && highlightedMill.length == 3) {
       final a = Offset(
         points[highlightedMill.first].dx * size.width,
@@ -2207,32 +2183,21 @@ class BoardPainter extends CustomPainter {
         a,
         b,
         Paint()
-          ..color = const Color(0xffffd54f).withOpacity(.25)
-          ..strokeWidth = size.width * .025
+          ..color = Colors.white.withOpacity(.55)
+          ..strokeWidth = size.width * .036
           ..strokeCap = StrokeCap.round
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
       );
 
       canvas.drawLine(
         a,
         b,
         Paint()
-          ..color = const Color(0xffffed9b).withOpacity(.85)
-          ..strokeWidth = size.width * .004
+          ..color = Colors.white.withOpacity(.9)
+          ..strokeWidth = size.width * .008
           ..strokeCap = StrokeCap.round,
       );
     }
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        rect.deflate(size.width * .018),
-        const Radius.circular(14),
-      ),
-      Paint()
-        ..color = const Color(0xffeac08e).withOpacity(.45)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = size.width * .004,
-    );
   }
 
   @override

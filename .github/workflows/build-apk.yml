@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Get Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Flutter
         uses: subosito/flutter-action@v2
@@ -55,7 +55,7 @@ jobs:
       - name: Set App Display Name & Custom Icon
         run: |
           python3 - << 'EOF'
-          import os, re, shutil, struct, subprocess, zlib
+          import os, re, shutil, subprocess, sys
 
           candidates = [
               "image_57d593b5.jpg",
@@ -75,67 +75,78 @@ jobs:
                   if src_icon:
                       break
 
+          if not src_icon or not os.path.isfile(src_icon):
+              print("ERROR: Could not find image_57d593b5.jpg in repository.")
+              sys.exit(1)
+
+          print(f"Found real icon source: {src_icon} ({os.path.getsize(src_icon)} bytes)")
+
           os.makedirs("assets/icon", exist_ok=True)
           converted_png = "assets/icon/ic_launcher_converted.png"
 
-          def make_fallback_png(out_path):
-              w, h = 512, 512
-              row = bytes([0]) + bytes([220, 164, 99, 255] * w)
-              raw = row * h
+          def is_valid_png(path):
+              if not os.path.isfile(path) or os.path.getsize(path) < 16:
+                  return False
+              with open(path, "rb") as f:
+                  return f.read(8) == b"\x89PNG\r\n\x1a\n"
 
-              def png_chunk(tag, data):
-                  crc = zlib.crc32(tag + data) & 0xffffffff
-                  return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", crc)
-
-              ihdr = struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0)
-              idat = zlib.compress(raw, level=6)
-              png_bytes = (
-                  b"\x89PNG\r\n\x1a\n"
-                  + png_chunk(b"IHDR", ihdr)
-                  + png_chunk(b"IDAT", idat)
-                  + png_chunk(b"IEND", b"")
-              )
-              with open(out_path, "wb") as f:
-                  f.write(png_bytes)
-
-          png_ready = False
-          if src_icon:
-              print(f"Found icon source: {src_icon} ({os.path.getsize(src_icon)} bytes)")
-              # محاولة التحويل الحقيقي إلى PNG عبر PIL أو ffmpeg أو convert
+          def convert_with_pil(src, dst):
               try:
                   from PIL import Image
-                  with Image.open(src_icon) as im:
-                      im.convert("RGBA").save(converted_png, format="PNG")
-                  png_ready = os.path.isfile(converted_png)
-              except Exception:
-                  pass
+                  with Image.open(src) as im:
+                      im = im.convert("RGBA").resize((512, 512))
+                      im.save(dst, format="PNG")
+                  return is_valid_png(dst)
+              except Exception as exc:
+                  print(f"PIL attempt failed: {exc}")
+                  return False
 
-              if not png_ready and shutil.which("ffmpeg"):
-                  res = subprocess.run(
-                      ["ffmpeg", "-y", "-i", src_icon, converted_png],
-                      stdout=subprocess.DEVNULL,
-                      stderr=subprocess.DEVNULL,
-                  )
-                  png_ready = res.returncode == 0 and os.path.isfile(converted_png)
+          png_ok = convert_with_pil(src_icon, converted_png)
 
-              if not png_ready and shutil.which("convert"):
-                  res = subprocess.run(
-                      ["convert", src_icon, converted_png],
-                      stdout=subprocess.DEVNULL,
-                      stderr=subprocess.DEVNULL,
-                  )
-                  png_ready = res.returncode == 0 and os.path.isfile(converted_png)
+          if not png_ok and shutil.which("apt-get"):
+              print("Installing python3-pil via apt-get...")
+              subprocess.run(
+                  ["sudo", "apt-get", "update", "-qq"],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+                  check=False,
+              )
+              subprocess.run(
+                  ["sudo", "apt-get", "install", "-y", "-qq", "python3-pil"],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+                  check=False,
+              )
+              png_ok = convert_with_pil(src_icon, converted_png)
 
-              # إذا لم تكن أي أداة تحويل متوفرة، نستخدم نسخة احتياطية صالحة لـ AAPT2
-              if not png_ready:
-                  make_fallback_png(converted_png)
-                  png_ready = True
-          else:
-              print("WARNING: Custom icon file not found; generating fallback PNG.")
-              make_fallback_png(converted_png)
-              png_ready = True
+          if not png_ok and shutil.which("ffmpeg"):
+              res = subprocess.run(
+                  ["ffmpeg", "-y", "-i", src_icon, "-vf", "scale=512:512", converted_png],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+              )
+              png_ok = res.returncode == 0 and is_valid_png(converted_png)
+
+          if not png_ok and shutil.which("convert"):
+              res = subprocess.run(
+                  ["convert", src_icon, "-resize", "512x512!", converted_png],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+              )
+              png_ok = res.returncode == 0 and is_valid_png(converted_png)
+
+          if not png_ok:
+              print("ERROR: Failed to convert source JPEG/image into valid PNG.")
+              sys.exit(1)
+
+          print(f"CONVERTED_FROM_REAL_IMAGE: {converted_png} ({os.path.getsize(converted_png)} bytes)")
 
           res_dir = "android/app/src/main/res"
+          if os.path.isdir(res_dir):
+              for entry in os.listdir(res_dir):
+                  if entry.startswith("mipmap-anydpi"):
+                      shutil.rmtree(os.path.join(res_dir, entry), ignore_errors=True)
+
           for folder in [
               "mipmap-mdpi",
               "mipmap-hdpi",
@@ -145,16 +156,29 @@ jobs:
           ]:
               target_dir = os.path.join(res_dir, folder)
               os.makedirs(target_dir, exist_ok=True)
-              xml_file = os.path.join(target_dir, "ic_launcher.xml")
-              if os.path.exists(xml_file):
-                  os.remove(xml_file)
+              for stale in [
+                  "ic_launcher.xml",
+                  "ic_launcher.webp",
+                  "ic_launcher_round.xml",
+                  "ic_launcher_round.webp",
+                  "ic_launcher_foreground.png",
+                  "ic_launcher_foreground.webp",
+                  "ic_launcher_background.png",
+                  "ic_launcher_background.webp",
+              ]:
+                  stale_path = os.path.join(target_dir, stale)
+                  if os.path.exists(stale_path):
+                      os.remove(stale_path)
               shutil.copyfile(converted_png, os.path.join(target_dir, "ic_launcher.png"))
+              shutil.copyfile(converted_png, os.path.join(target_dir, "ic_launcher_round.png"))
 
           manifest_path = "android/app/src/main/AndroidManifest.xml"
           if os.path.exists(manifest_path):
               with open(manifest_path, "r", encoding="utf-8") as f:
                   content = f.read()
               content = re.sub(r'android:label="[^"]*"', 'android:label="ثبت"', content)
+              content = re.sub(r'android:icon="[^"]*"', 'android:icon="@mipmap/ic_launcher"', content)
+              content = re.sub(r'android:roundIcon="[^"]*"', 'android:roundIcon="@mipmap/ic_launcher_round"', content)
               with open(manifest_path, "w", encoding="utf-8") as f:
                   f.write(content)
           EOF
@@ -210,7 +234,7 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Bahmad-Thabet.apk
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: Bahmad-Thabet-APK
           path: build/app/outputs/flutter-apk/Bahmad-Thabet.apk

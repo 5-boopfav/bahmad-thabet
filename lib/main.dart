@@ -9,10 +9,15 @@ void main() {
   runApp(const ThabetApp());
 }
 
+enum AiSpeed { slow, normal, fast }
+
 class SoundFX {
   static final AudioPlayer _player = AudioPlayer();
 
-  static Future<void> _playAsset(String assetPath, SystemSoundType fallback) async {
+  static Future<void> _playAsset(
+    String assetPath,
+    SystemSoundType fallback,
+  ) async {
     try {
       await _player.stop();
       await _player.play(AssetSource(assetPath));
@@ -119,6 +124,8 @@ class _ThabetAppState extends State<ThabetApp> {
 
   bool soundEnabled = true;
   bool vibrationEnabled = true;
+  bool showLegalMoves = true;
+  AiSpeed aiSpeed = AiSpeed.normal;
 
   BoardTheme get theme => boardThemes[themeIndex];
   Color get appBackground => appBackgrounds[backgroundIndex];
@@ -147,6 +154,17 @@ class _ThabetAppState extends State<ThabetApp> {
     }
   }
 
+  void resetSettings() {
+    setState(() {
+      themeIndex = 0;
+      backgroundIndex = 0;
+      soundEnabled = true;
+      vibrationEnabled = true;
+      showLegalMoves = true;
+      aiSpeed = AiSpeed.normal;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -170,8 +188,13 @@ class _ThabetAppState extends State<ThabetApp> {
         onBackgroundChanged: (v) => setState(() => backgroundIndex = v),
         soundEnabled: soundEnabled,
         vibrationEnabled: vibrationEnabled,
+        showLegalMoves: showLegalMoves,
+        aiSpeed: aiSpeed,
         onSoundChanged: (v) => setState(() => soundEnabled = v),
         onVibrationChanged: (v) => setState(() => vibrationEnabled = v),
+        onShowLegalMovesChanged: (v) => setState(() => showLegalMoves = v),
+        onAiSpeedChanged: (v) => setState(() => aiSpeed = v),
+        onResetSettings: resetSettings,
         sound: sound,
         playPlaceSound: playPlaceSound,
         playMillSound: playMillSound,
@@ -193,9 +216,14 @@ class HomePage extends StatelessWidget {
 
   final bool soundEnabled;
   final bool vibrationEnabled;
+  final bool showLegalMoves;
+  final AiSpeed aiSpeed;
 
   final ValueChanged<bool> onSoundChanged;
   final ValueChanged<bool> onVibrationChanged;
+  final ValueChanged<bool> onShowLegalMovesChanged;
+  final ValueChanged<AiSpeed> onAiSpeedChanged;
+  final VoidCallback onResetSettings;
 
   final VoidCallback sound;
   final VoidCallback playPlaceSound;
@@ -213,8 +241,13 @@ class HomePage extends StatelessWidget {
     required this.onBackgroundChanged,
     required this.soundEnabled,
     required this.vibrationEnabled,
+    required this.showLegalMoves,
+    required this.aiSpeed,
     required this.onSoundChanged,
     required this.onVibrationChanged,
+    required this.onShowLegalMovesChanged,
+    required this.onAiSpeedChanged,
+    required this.onResetSettings,
     required this.sound,
     required this.playPlaceSound,
     required this.playMillSound,
@@ -402,6 +435,8 @@ class HomePage extends StatelessWidget {
           appBackground: appBackground,
           computerMode: computer,
           difficulty: difficulty,
+          showLegalMoves: showLegalMoves,
+          aiSpeed: aiSpeed,
           sound: sound,
           playPlaceSound: playPlaceSound,
           playMillSound: playMillSound,
@@ -451,8 +486,7 @@ class HomePage extends StatelessWidget {
     return ListTile(
       leading: Icon(Icons.smart_toy, color: theme.accent),
       title: Text(title, style: const TextStyle(color: Colors.white)),
-      subtitle:
-          Text(subtitle, style: const TextStyle(color: Colors.white70)),
+      subtitle: Text(subtitle, style: const TextStyle(color: Colors.white70)),
       onTap: () {
         Navigator.pop(sheetContext);
         _start(homeContext, true, level);
@@ -507,92 +541,225 @@ class HomePage extends StatelessWidget {
   void _settings(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xff2b2c2e),
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setSheet) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'إعدادات اللعبة',
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SwitchListTile(
-                  title: const Text(
-                    'الأصوات',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  value: soundEnabled,
-                  onChanged: (v) {
-                    onSoundChanged(v);
-                    setSheet(() {});
-                  },
-                ),
-                SwitchListTile(
-                  title: const Text(
-                    'الاهتزاز',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  value: vibrationEnabled,
-                  onChanged: (v) {
-                    onVibrationChanged(v);
-                    setSheet(() {});
-                  },
-                ),
-                const Divider(color: Colors.white24),
-                const Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    'خلفية التطبيق',
+        builder: (context, setSheet) {
+          AiSpeed localSpeed = aiSpeed;
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'إعدادات اللعبة',
                     style: TextStyle(
+                      fontSize: 21,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: List.generate(
-                    appBackgrounds.length,
-                    (i) => GestureDetector(
-                      onTap: () {
-                        onBackgroundChanged(i);
-                        setSheet(() {});
-                      },
-                      child: Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: appBackgrounds[i],
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: backgroundIndex == i
-                                ? theme.accent
-                                : Colors.grey,
-                            width: backgroundIndex == i ? 3 : 1,
-                          ),
-                        ),
-                        child: backgroundIndex == i
-                            ? const Icon(Icons.check, color: Colors.green)
-                            : null,
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    title: const Text(
+                      'الأصوات',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    value: soundEnabled,
+                    onChanged: (v) {
+                      onSoundChanged(v);
+                      setSheet(() {});
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text(
+                      'الاهتزاز',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    value: vibrationEnabled,
+                    onChanged: (v) {
+                      onVibrationChanged(v);
+                      setSheet(() {});
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text(
+                      'إظهار الحركات المتاحة',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'إبراز النقاط الفارغة المتصلة عند اختيار حجر',
+                      style: TextStyle(color: Colors.white60, fontSize: 12),
+                    ),
+                    value: showLegalMoves,
+                    onChanged: (v) {
+                      onShowLegalMovesChanged(v);
+                      setSheet(() {});
+                    },
+                  ),
+                  const Divider(color: Colors.white24),
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'سرعة الكمبيوتر',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      for (final entry in const [
+                        (AiSpeed.slow, 'هادئ'),
+                        (AiSpeed.normal, 'عادي'),
+                        (AiSpeed.fast, 'سريع'),
+                      ])
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: ChoiceChip(
+                              label: Center(child: Text(entry.$2)),
+                              selected: localSpeed == entry.$1,
+                              selectedColor: theme.accent,
+                              labelStyle: TextStyle(
+                                color: localSpeed == entry.$1
+                                    ? Colors.black87
+                                    : Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              backgroundColor: const Color(0xff383a3c),
+                              onSelected: (_) {
+                                localSpeed = entry.$1;
+                                onAiSpeedChanged(entry.$1);
+                                setSheet(() {});
+                              },
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const Divider(color: Colors.white24),
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'مظهر الطاولة',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 44,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: boardThemes.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, i) {
+                        final selectedTheme = themeIndex == i;
+                        return GestureDetector(
+                          onTap: () {
+                            onThemeChanged(i);
+                            setSheet(() {});
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: boardThemes[i].wood,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: selectedTheme
+                                    ? Colors.white
+                                    : boardThemes[i].lines,
+                                width: selectedTheme ? 2.5 : 1,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                boardThemes[i].name,
+                                style: TextStyle(
+                                  color: boardThemes[i].lines,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'خلفية التطبيق',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: List.generate(
+                      appBackgrounds.length,
+                      (i) => GestureDetector(
+                        onTap: () {
+                          onBackgroundChanged(i);
+                          setSheet(() {});
+                        },
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: appBackgrounds[i],
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: backgroundIndex == i
+                                  ? theme.accent
+                                  : Colors.grey,
+                              width: backgroundIndex == i ? 3 : 1,
+                            ),
+                          ),
+                          child: backgroundIndex == i
+                              ? const Icon(Icons.check, color: Colors.green)
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        onResetSettings();
+                        setSheet(() {});
+                      },
+                      icon: const Icon(Icons.restore),
+                      label: const Text('استعادة الإعدادات الافتراضية'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        side: const BorderSide(color: Colors.white24),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -616,7 +783,7 @@ class HomePage extends StatelessWidget {
             '• الحركة إلى نقطة فارغة متصلة فقط.\n\n'
             '• عند تكوين ثبّت جديد، تزال قطعة من الخصم.\n\n'
             '• يمكن إزالة أي حجر من أحجار الخصم.\n\n'
-            '• الفوز بإزالة جميع أحجار الخصم أو منعه من الحركة.',
+            '• تنتهي اللعبة أيضاً عندما يتبقى لأحد الطرفين حجران فقط ويكون خاسراً، أو إذا تعذر تحريك أحجاره.',
             style: TextStyle(height: 1.6, color: Colors.white),
           ),
         ),
@@ -648,6 +815,8 @@ class GamePage extends StatefulWidget {
   final Color appBackground;
   final bool computerMode;
   final int difficulty;
+  final bool showLegalMoves;
+  final AiSpeed aiSpeed;
   final VoidCallback sound;
   final VoidCallback playPlaceSound;
   final VoidCallback playMillSound;
@@ -660,6 +829,8 @@ class GamePage extends StatefulWidget {
     required this.appBackground,
     required this.computerMode,
     required this.difficulty,
+    required this.showLegalMoves,
+    required this.aiSpeed,
     required this.sound,
     required this.playPlaceSound,
     required this.playMillSound,
@@ -732,6 +903,7 @@ class _GamePageState extends State<GamePage>
   bool paused = false;
   bool showHint = false;
   bool replayMode = false;
+  bool gameOverSheetShown = false;
 
   bool millCelebration = false;
   List<int> highlightedMill = [];
@@ -744,11 +916,25 @@ class _GamePageState extends State<GamePage>
   Timer? aiTimer;
 
   String status = '';
+  String winReason = '';
 
   int get playerCount => board.where((v) => v == 1).length;
   int get computerCount => board.where((v) => v == 2).length;
 
+  int stoneCount(int p) => board.where((v) => v == p).length;
+
   String playerName(int p) => p == 1 ? 'الأبيض' : 'الأسود';
+
+  Duration get _aiDelay {
+    switch (widget.aiSpeed) {
+      case AiSpeed.slow:
+        return const Duration(milliseconds: 1050);
+      case AiSpeed.fast:
+        return const Duration(milliseconds: 350);
+      case AiSpeed.normal:
+        return const Duration(milliseconds: 650);
+    }
+  }
 
   @override
   void initState() {
@@ -796,6 +982,121 @@ class _GamePageState extends State<GamePage>
     });
 
     _scheduleComputer();
+  }
+
+  void _finishGame(int winPlayer, String reason, String statusText) {
+    winner = winPlayer;
+    phase = 2;
+    pendingRemoval = null;
+    selected = null;
+    showHint = false;
+    hintDestination = null;
+    winReason = reason;
+    status = statusText;
+    aiTimer?.cancel();
+
+    if (!gameOverSheetShown && mounted) {
+      gameOverSheetShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && winner != null && !replayMode) {
+          _showGameOverDialog();
+        }
+      });
+    }
+  }
+
+  bool _checkTwoStoneLossRule({bool checkFirstPlayerOnly = false}) {
+    if (phase == 0 || initialRemovalPhase) return false;
+
+    if (checkFirstPlayerOnly && initialFirstRemover != null) {
+      final first = initialFirstRemover!;
+      if (stoneCount(first) <= 2) {
+        final winPlayer = 3 - first;
+        _finishGame(
+          winPlayer,
+          'تبقّى لـ ${playerName(first)} حجران فقط',
+          'فاز ${playerName(winPlayer)}! تبقّى لـ ${playerName(first)} حجران فقط.',
+        );
+        return true;
+      }
+      return false;
+    }
+
+    for (final p in [1, 2]) {
+      if (stoneCount(p) <= 2) {
+        final winPlayer = 3 - p;
+        _finishGame(
+          winPlayer,
+          'تبقّى لـ ${playerName(p)} حجران فقط',
+          'فاز ${playerName(winPlayer)}! تبقّى لـ ${playerName(p)} حجران فقط.',
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _showGameOverDialog() {
+    if (winner == null) return;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xff2b2c2e),
+        title: Row(
+          children: [
+            Icon(Icons.emoji_events, color: widget.theme.accent),
+            const SizedBox(width: 8),
+            Text(
+              'فاز ${playerName(winner!)}!',
+              style: TextStyle(color: widget.theme.accent),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'السبب: $winReason',
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'الوقت المستغرق: ${_formatTime()}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _replay();
+            },
+            child: const Text('إعادة العرض'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
+            },
+            child: const Text('الرئيسية'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _restart();
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: widget.theme.accent,
+              foregroundColor: Colors.black87,
+            ),
+            child: const Text('مباراة جديدة'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _launchStoneFromCenter(int player, int targetIndex) {
@@ -899,7 +1200,7 @@ class _GamePageState extends State<GamePage>
       return;
     }
 
-    aiTimer = Timer(const Duration(milliseconds: 650), () {
+    aiTimer = Timer(_aiDelay, () {
       if (!mounted || paused || turn != 2 || winner != null) return;
       _computerMove();
     });
@@ -985,9 +1286,11 @@ class _GamePageState extends State<GamePage>
 
     if (moves.isEmpty) {
       setState(() {
-        winner = 1;
-        phase = 2;
-        status = 'فاز الأبيض! الكمبيوتر لا يملك حركة.';
+        _finishGame(
+          1,
+          'الكمبيوتر لا يملك حركة متاحة',
+          'فاز الأبيض! الكمبيوتر لا يملك حركة.',
+        );
       });
       return;
     }
@@ -1108,10 +1411,16 @@ class _GamePageState extends State<GamePage>
 
       turn = initialFirstRemover!;
 
+      if (_checkTwoStoneLossRule(checkFirstPlayerOnly: true)) {
+        return;
+      }
+
       if (board.every((v) => v != turn) || !hasMove(turn)) {
-        winner = 3 - turn;
-        phase = 2;
-        status = 'فاز ${playerName(winner!)}! اللاعب الأول لا يملك حركة متاحة.';
+        _finishGame(
+          3 - turn,
+          'اللاعب الأول لا يملك حركة متاحة',
+          'فاز ${playerName(3 - turn)}! اللاعب الأول لا يملك حركة متاحة.',
+        );
         return;
       }
 
@@ -1120,10 +1429,16 @@ class _GamePageState extends State<GamePage>
       return;
     }
 
+    if (_checkTwoStoneLossRule()) {
+      return;
+    }
+
     if (board.every((v) => v != 3 - remover)) {
-      winner = remover;
-      phase = 2;
-      status = 'فاز ${playerName(remover)}!';
+      _finishGame(
+        remover,
+        'تمت إزالة جميع أحجار الخصم',
+        'فاز ${playerName(remover)}!',
+      );
       return;
     }
 
@@ -1149,6 +1464,9 @@ class _GamePageState extends State<GamePage>
   }
 
   void _endTurn() {
+    if (_checkTwoStoneLossRule()) {
+      return;
+    }
     turn = 3 - turn;
     selected = null;
     showHint = false;
@@ -1159,17 +1477,25 @@ class _GamePageState extends State<GamePage>
 
   void _checkNextTurn() {
     selected = null;
+    if (_checkTwoStoneLossRule()) {
+      return;
+    }
+
     if (board.every((v) => v != turn)) {
-      winner = 3 - turn;
-      phase = 2;
-      status = 'فاز ${playerName(winner!)}!';
+      _finishGame(
+        3 - turn,
+        'لا توجد أحجار متبقية للخصم',
+        'فاز ${playerName(3 - turn)}!',
+      );
       return;
     }
 
     if (!hasMove(turn)) {
-      winner = 3 - turn;
-      phase = 2;
-      status = 'فاز ${playerName(winner!)}! لا توجد حركات متاحة.';
+      _finishGame(
+        3 - turn,
+        'لا توجد حركات متاحة',
+        'فاز ${playerName(3 - turn)}! لا توجد حركات متاحة.',
+      );
       return;
     }
 
@@ -1290,6 +1616,8 @@ class _GamePageState extends State<GamePage>
       selected = null;
       pendingRemoval = null;
       winner = null;
+      winReason = '';
+      gameOverSheetShown = false;
       firstMill = null;
       initialFirstRemover = null;
 
@@ -1821,7 +2149,8 @@ class _GamePageState extends State<GamePage>
     final isHint = showHint && hintDestination == i;
     final isMill = highlightedMill.contains(i);
 
-    final isLegal = selected != null &&
+    final isLegal = widget.showLegalMoves &&
+        selected != null &&
         legalDestinations(selected!).contains(i) &&
         phase == 1 &&
         pendingRemoval == null;

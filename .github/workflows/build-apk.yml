@@ -57,7 +57,6 @@ jobs:
           python3 - << 'EOF'
           import os, re, shutil, struct, zlib
 
-          # البحث عن صورة الأيقونة سواء كانت في جذر المستودع أو داخل assets/icon
           candidates = [
               "Image_57d593b5.jpg",
               "assets/icon/Image_57d593b5.jpg",
@@ -86,7 +85,6 @@ jobs:
               with open(src_icon, "wb") as f:
                   f.write(png_bytes)
 
-          # نسخ الصورة إلى جميع مجلدات mipmap الخاصة بأندرويد
           res_dir = "android/app/src/main/res"
           for folder in [
               "mipmap-mdpi",
@@ -99,7 +97,6 @@ jobs:
               os.makedirs(target_dir, exist_ok=True)
               shutil.copyfile(src_icon, os.path.join(target_dir, "ic_launcher.png"))
 
-          # ضبط اسم التطبيق الظاهر على الشاشة إلى "ثبت"
           manifest_path = "android/app/src/main/AndroidManifest.xml"
           if os.path.exists(manifest_path):
               with open(manifest_path, "r", encoding="utf-8") as f:
@@ -107,6 +104,26 @@ jobs:
               content = re.sub(r'android:label="[^"]*"', 'android:label="ثبت"', content)
               with open(manifest_path, "w", encoding="utf-8") as f:
                   f.write(content)
+          EOF
+
+      - name: Update Home Screen Brand Text
+        run: |
+          python3 - << 'EOF'
+          import os, re
+
+          path = "lib/main.dart"
+          if os.path.exists(path):
+              with open(path, "r", encoding="utf-8") as f:
+                  text = f.read()
+
+              text = re.sub(
+                  r"(?<!•\s)BAHMAD THABET",
+                  "بحمــــــــــــــــد 👑",
+                  text,
+              )
+
+              with open(path, "w", encoding="utf-8") as f:
+                  f.write(text)
           EOF
 
       - name: Install Dependencies

@@ -626,6 +626,13 @@ class _GamePageState extends State<GamePage> {
   bool showHint = false;
   bool replayMode = false;
 
+  // بيانات حركة الحجر المتحركة.
+  bool isMoving = false;
+  bool movementArrived = false;
+  int? movingFrom;
+  int? movingTo;
+  int? movingPlayer;
+
   bool millCelebration = false;
   List<int> highlightedMill = [];
   Timer? millTimer;
@@ -767,17 +774,26 @@ class _GamePageState extends State<GamePage> {
         turn != 2 ||
         winner != null ||
         paused ||
-        replayMode) {
+        replayMode ||
+        isMoving) {
       return;
     }
 
     aiTimer = Timer(const Duration(milliseconds: 650), () {
-      if (!mounted || paused || turn != 2 || winner != null) return;
+      if (!mounted ||
+          paused ||
+          turn != 2 ||
+          winner != null ||
+          isMoving) {
+        return;
+      }
       _computerMove();
     });
   }
 
   void _computerMove() {
+    if (isMoving) return;
+
     if (pendingRemoval == 2) {
       _computerRemove();
       return;
@@ -845,6 +861,8 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _computerMoveStone() {
+    if (isMoving) return;
+
     final moves = <List<int>>[];
 
     for (int i = 0; i < 24; i++) {
@@ -895,21 +913,7 @@ class _GamePageState extends State<GamePage> {
       }
     }
 
-    setState(() {
-      board[chosen[0]] = 0;
-      board[chosen[1]] = 2;
-      _saveHistory();
-
-      if (hasMill(chosen[1], 2)) {
-        pendingRemoval = 2;
-        status = 'الكمبيوتر كوّن ثبّت!';
-        _celebrateMill(chosen[1], 2);
-      } else {
-        _endTurn();
-      }
-    });
-
-    _scheduleComputer();
+    _moveStone(chosen[0], chosen[1]);
   }
 
   void _computerRemove() {
@@ -989,6 +993,17 @@ class _GamePageState extends State<GamePage> {
 
       status = 'اكتملت الإزالتان. دور ${playerName(turn)} للتحريك.';
       _scheduleComputer();
+      return;
+    }
+
+    // الفوز عند بقاء حجرين أو أقل للخصم.
+    final opponent = 3 - remover;
+    final opponentCount = opponent == 1 ? playerCount : computerCount;
+
+    if (opponentCount <= 2) {
+      winner = remover;
+      phase = 2;
+      status = 'فاز ${playerName(remover)}! لم يتبقَّ للخصم سوى حجرين.';
       return;
     }
 
@@ -1075,34 +1090,74 @@ class _GamePageState extends State<GamePage> {
     widget.vibrate();
   }
 
+  // بدء حركة الحجر فعليًا دون نقله مباشرة إلى الوجهة.
   void _moveStone(int from, int to) {
+    if (isMoving || paused || winner != null || replayMode) return;
     if (board[from] != turn || board[to] != 0) return;
     if (!near[from].contains(to)) return;
 
+    final player = turn;
+
+    aiTimer?.cancel();
+
     setState(() {
+      isMoving = true;
+      movementArrived = false;
+      movingFrom = from;
+      movingTo = to;
+      movingPlayer = player;
+
       board[from] = 0;
-      board[to] = turn;
+
       selected = null;
       showHint = false;
       hintDestination = null;
-
-      _saveHistory();
-
-      if (hasMill(to, turn)) {
-        pendingRemoval = turn;
-        status = 'ثبّت! اختر حجرًا من ${playerName(3 - turn)} لإزالته.';
-        _celebrateMill(to, turn);
-      } else {
-        _endTurn();
-      }
     });
 
     widget.sound();
     widget.vibrate();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !isMoving) return;
+
+      setState(() {
+        movementArrived = true;
+      });
+    });
+  }
+
+  // إنهاء الحركة بعد وصول الحجر إلى النقطة الجديدة.
+  void _finishAnimatedMove() {
+    if (!mounted || !isMoving || movingTo == null || movingPlayer == null) {
+      return;
+    }
+
+    final to = movingTo!;
+    final player = movingPlayer!;
+
+    setState(() {
+      board[to] = player;
+
+      isMoving = false;
+      movementArrived = false;
+      movingFrom = null;
+      movingTo = null;
+      movingPlayer = null;
+
+      _saveHistory();
+
+      if (hasMill(to, player)) {
+        pendingRemoval = player;
+        status = 'ثبّت! اختر حجرًا من ${playerName(3 - player)} لإزالته.';
+        _celebrateMill(to, player);
+      } else {
+        _endTurn();
+      }
+    });
   }
 
   void _tapNode(int index) {
-    if (paused || winner != null || replayMode) return;
+    if (paused || winner != null || replayMode || isMoving) return;
     if (widget.computerMode && turn == 2) return;
 
     if (pendingRemoval != null) {
@@ -1123,7 +1178,7 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _dragMove(int from, int to) {
-    if (paused || winner != null || replayMode) return;
+    if (paused || winner != null || replayMode || isMoving) return;
     if (widget.computerMode && turn == 2) return;
     if (pendingRemoval != null || phase != 1) return;
     if (board[from] != turn || board[to] != 0) return;
@@ -1164,6 +1219,12 @@ class _GamePageState extends State<GamePage> {
       seconds = 0;
       paused = false;
 
+      isMoving = false;
+      movementArrived = false;
+      movingFrom = null;
+      movingTo = null;
+      movingPlayer = null;
+
       millCelebration = false;
       highlightedMill.clear();
 
@@ -1175,7 +1236,7 @@ class _GamePageState extends State<GamePage> {
 
   void _hint() {
     if (!widget.computerMode) return;
-    if (winner != null || turn != 1 || paused) return;
+    if (winner != null || turn != 1 || paused || isMoving) return;
     if (pendingRemoval != null) return;
 
     int? best;
@@ -1257,7 +1318,7 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _pause() {
-    if (winner != null || replayMode) return;
+    if (winner != null || replayMode || isMoving) return;
 
     setState(() {
       paused = !paused;
@@ -1272,7 +1333,7 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _replay() {
-    if (history.isEmpty) return;
+    if (history.isEmpty || isMoving) return;
 
     aiTimer?.cancel();
 
@@ -1285,7 +1346,7 @@ class _GamePageState extends State<GamePage> {
   }
 
   void _replayStep(int step) {
-    if (history.isEmpty) return;
+    if (history.isEmpty || isMoving) return;
 
     final next = (replayIndex + step).clamp(0, history.length - 1);
 
@@ -1353,8 +1414,6 @@ class _GamePageState extends State<GamePage> {
                   player: 2,
                   active: turn == 2,
                 ),
-
-                // مساحة ثابتة تمنع اهتزاز اللوحة عند تغير رسالة الدور.
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -1408,7 +1467,6 @@ class _GamePageState extends State<GamePage> {
                     ),
                   ),
                 ),
-
                 Expanded(
                   child: Center(
                     child: SizedBox(
@@ -1418,7 +1476,6 @@ class _GamePageState extends State<GamePage> {
                     ),
                   ),
                 ),
-
                 _playerPanel(
                   label: 'الأبيض',
                   count: playerCount,
@@ -1426,7 +1483,6 @@ class _GamePageState extends State<GamePage> {
                   player: 1,
                   active: turn == 1,
                 ),
-
                 if (replayMode)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1460,7 +1516,6 @@ class _GamePageState extends State<GamePage> {
                       ),
                     ],
                   ),
-
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 5, 8, 9),
                   child: Wrap(
@@ -1518,6 +1573,25 @@ class _GamePageState extends State<GamePage> {
           ),
         ),
         for (int i = 0; i < 24; i++) _stoneWidget(i, size),
+
+        // الحجر المتحرك فوق اللوحة.
+        if (isMoving &&
+            movingFrom != null &&
+            movingTo != null &&
+            movingPlayer != null)
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeInOutCubic,
+            left: points[movementArrived ? movingTo! : movingFrom!].dx *
+                    size -
+                size * .076 / 2,
+            top: points[movementArrived ? movingTo! : movingFrom!].dy *
+                    size -
+                size * .076 / 2,
+            onEnd: _finishAnimatedMove,
+            child: _movingStoneWidget(movingPlayer!, size * .076),
+          ),
+
         if (millCelebration)
           Positioned(
             top: 8,
@@ -1563,9 +1637,80 @@ class _GamePageState extends State<GamePage> {
     );
   }
 
+  // تصميم الحجر أثناء انتقاله بين النقطتين.
+  Widget _movingStoneWidget(int player, double stoneSize) {
+    return IgnorePointer(
+      child: Container(
+        width: stoneSize,
+        height: stoneSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: player == 1
+              ? const RadialGradient(
+                  center: Alignment(-.35, -.4),
+                  radius: .95,
+                  colors: [
+                    Color(0xffffffff),
+                    Color(0xfff2f2f2),
+                    Color(0xffc2c2c2),
+                    Color(0xff8c8c8c),
+                  ],
+                  stops: [0, .3, .68, 1],
+                )
+              : const RadialGradient(
+                  center: Alignment(-.35, -.4),
+                  radius: .95,
+                  colors: [
+                    Color(0xff757575),
+                    Color(0xff242424),
+                    Color(0xff0a0a0a),
+                    Color(0xff000000),
+                  ],
+                  stops: [0, .22, .55, 1],
+                ),
+          border: Border.all(
+            color: player == 1
+                ? const Color(0xffeeeeee)
+                : const Color(0xff555555),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(.45),
+              blurRadius: 9,
+              spreadRadius: 1,
+              offset: const Offset(1, 3),
+            ),
+          ],
+        ),
+        child: Align(
+          alignment: const Alignment(-.35, -.4),
+          child: Container(
+            width: stoneSize * .22,
+            height: stoneSize * .16,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(player == 1 ? .9 : .35),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.white.withOpacity(.25),
+                  blurRadius: 5,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _stoneWidget(int i, double size) {
     final t = widget.theme;
-    final value = board[i];
+
+    // إخفاء الحجر الأصلي أثناء تحريكه حتى لا يظهر مرتين.
+    final isMovingPoint =
+        isMoving && (i == movingFrom || i == movingTo);
+    final value = isMovingPoint ? 0 : board[i];
 
     final isHint = showHint && hintDestination == i;
     final isMill = highlightedMill.contains(i);
@@ -1577,13 +1722,13 @@ class _GamePageState extends State<GamePage> {
 
     final canDrag = !paused &&
         !replayMode &&
+        !isMoving &&
         winner == null &&
         pendingRemoval == null &&
         phase == 1 &&
         board[i] == turn &&
         !(widget.computerMode && turn == 2);
 
-    // قطر الحجر 7.6% من عرض اللوحة.
     final stoneSize = size * .076;
 
     final stone = AnimatedContainer(
@@ -1678,6 +1823,7 @@ class _GamePageState extends State<GamePage> {
 
           return !paused &&
               !replayMode &&
+              !isMoving &&
               winner == null &&
               pendingRemoval == null &&
               phase == 1 &&
@@ -1786,8 +1932,6 @@ class _GamePageState extends State<GamePage> {
                   ),
                 ),
                 const SizedBox(height: 7),
-
-                // الأحجار المتبقية تظهر ككرات فعلية بدل النص.
                 SizedBox(
                   height: 17,
                   child: LayoutBuilder(

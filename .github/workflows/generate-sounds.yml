@@ -1,0 +1,50 @@
+name: Generate Sound Assets
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-sounds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate WAV files
+        run: |
+          mkdir -p assets/sounds
+          python3 - << 'EOF'
+          import math, struct, wave
+
+          def make_tone(path, freqs, duration_s, volume=0.35, decay=True):
+              sample_rate = 44100
+              n_samples = int(sample_rate * duration_s)
+              with wave.open(path, "w") as wav:
+                  wav.setnchannels(1)
+                  wav.setsampwidth(2)
+                  wav.setframerate(sample_rate)
+                  for i in range(n_samples):
+                      t = i / sample_rate
+                      env = (1.0 - (i / n_samples)) ** 1.8 if decay else 1.0
+                      val = 0.0
+                      for f in freqs:
+                          val += math.sin(2.0 * math.pi * f * t)
+                      val = (val / max(1, len(freqs))) * volume * env
+                      sample = int(max(-1.0, min(1.0, val)) * 32767)
+                      wav.writeframes(struct.pack("<h", sample))
+
+          make_tone("assets/sounds/place.wav", [220, 440], 0.09, volume=0.45)
+          make_tone("assets/sounds/mill.wav", [523.25, 659.25, 783.99], 0.24, volume=0.4)
+          make_tone("assets/sounds/remove.wav", [330, 196], 0.12, volume=0.4)
+          EOF
+
+      - name: Commit and push sounds
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add assets/sounds/*.wav
+          git commit -m "Add generated game sound assets" || exit 0
+          git push

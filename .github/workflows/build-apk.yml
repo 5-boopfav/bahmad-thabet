@@ -55,7 +55,7 @@ jobs:
       - name: Set App Display Name & Custom Icon
         run: |
           python3 - << 'EOF'
-          import os, re, shutil, struct, zlib
+          import os, re, shutil, struct, subprocess, zlib
 
           candidates = [
               "image_57d593b5.jpg",
@@ -75,12 +75,10 @@ jobs:
                   if src_icon:
                       break
 
-          if src_icon:
-              print(f"Using custom icon: {src_icon} ({os.path.getsize(src_icon)} bytes)")
-          else:
-              print("WARNING: Custom icon file not found; generating fallback.")
-              os.makedirs("assets/icon", exist_ok=True)
-              src_icon = "assets/icon/fallback_icon.png"
+          os.makedirs("assets/icon", exist_ok=True)
+          converted_png = "assets/icon/ic_launcher_converted.png"
+
+          def make_fallback_png(out_path):
               w, h = 512, 512
               row = bytes([0]) + bytes([220, 164, 99, 255] * w)
               raw = row * h
@@ -97,8 +95,45 @@ jobs:
                   + png_chunk(b"IDAT", idat)
                   + png_chunk(b"IEND", b"")
               )
-              with open(src_icon, "wb") as f:
+              with open(out_path, "wb") as f:
                   f.write(png_bytes)
+
+          png_ready = False
+          if src_icon:
+              print(f"Found icon source: {src_icon} ({os.path.getsize(src_icon)} bytes)")
+              # محاولة التحويل الحقيقي إلى PNG عبر PIL أو ffmpeg أو convert
+              try:
+                  from PIL import Image
+                  with Image.open(src_icon) as im:
+                      im.convert("RGBA").save(converted_png, format="PNG")
+                  png_ready = os.path.isfile(converted_png)
+              except Exception:
+                  pass
+
+              if not png_ready and shutil.which("ffmpeg"):
+                  res = subprocess.run(
+                      ["ffmpeg", "-y", "-i", src_icon, converted_png],
+                      stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL,
+                  )
+                  png_ready = res.returncode == 0 and os.path.isfile(converted_png)
+
+              if not png_ready and shutil.which("convert"):
+                  res = subprocess.run(
+                      ["convert", src_icon, converted_png],
+                      stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL,
+                  )
+                  png_ready = res.returncode == 0 and os.path.isfile(converted_png)
+
+              # إذا لم تكن أي أداة تحويل متوفرة، نستخدم نسخة احتياطية صالحة لـ AAPT2
+              if not png_ready:
+                  make_fallback_png(converted_png)
+                  png_ready = True
+          else:
+              print("WARNING: Custom icon file not found; generating fallback PNG.")
+              make_fallback_png(converted_png)
+              png_ready = True
 
           res_dir = "android/app/src/main/res"
           for folder in [
@@ -110,7 +145,10 @@ jobs:
           ]:
               target_dir = os.path.join(res_dir, folder)
               os.makedirs(target_dir, exist_ok=True)
-              shutil.copyfile(src_icon, os.path.join(target_dir, "ic_launcher.png"))
+              xml_file = os.path.join(target_dir, "ic_launcher.xml")
+              if os.path.exists(xml_file):
+                  os.remove(xml_file)
+              shutil.copyfile(converted_png, os.path.join(target_dir, "ic_launcher.png"))
 
           manifest_path = "android/app/src/main/AndroidManifest.xml"
           if os.path.exists(manifest_path):

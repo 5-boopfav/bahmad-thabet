@@ -572,7 +572,6 @@ class GamePage extends StatefulWidget {
 class _GamePageState extends State<GamePage> {
   static int nextStarter = 1;
 
-  // إحداثيات مطابقة لتصميم HTML المعتمد.
   final List<Offset> points = const [
     Offset(65 / 600, 65 / 600),
     Offset(300 / 600, 65 / 600),
@@ -1354,6 +1353,8 @@ class _GamePageState extends State<GamePage> {
                   player: 2,
                   active: turn == 2,
                 ),
+
+                // مساحة ثابتة تمنع اهتزاز اللوحة عند تغير رسالة الدور.
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -1361,9 +1362,10 @@ class _GamePageState extends State<GamePage> {
                   ),
                   child: Container(
                     width: double.infinity,
+                    height: 68,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
-                      vertical: 9,
+                      vertical: 6,
                     ),
                     decoration: BoxDecoration(
                       color: t.wood,
@@ -1371,28 +1373,42 @@ class _GamePageState extends State<GamePage> {
                       border: Border.all(color: t.lines.withOpacity(.65)),
                     ),
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          status,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Colors.white,
+                        SizedBox(
+                          height: 36,
+                          child: Center(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 220),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              child: Text(
+                                status,
+                                key: ValueKey(status),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 3),
                         Text(
                           'الوقت: ${_formatTime()}',
                           style: TextStyle(
                             color: t.lines.withOpacity(.8),
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
+
                 Expanded(
                   child: Center(
                     child: SizedBox(
@@ -1402,6 +1418,7 @@ class _GamePageState extends State<GamePage> {
                     ),
                   ),
                 ),
+
                 _playerPanel(
                   label: 'الأبيض',
                   count: playerCount,
@@ -1409,6 +1426,7 @@ class _GamePageState extends State<GamePage> {
                   player: 1,
                   active: turn == 1,
                 ),
+
                 if (replayMode)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1442,6 +1460,7 @@ class _GamePageState extends State<GamePage> {
                       ),
                     ],
                   ),
+
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 5, 8, 9),
                   child: Wrap(
@@ -1564,10 +1583,12 @@ class _GamePageState extends State<GamePage> {
         board[i] == turn &&
         !(widget.computerMode && turn == 2);
 
-    final stoneSize = size * .064;
+    // قطر الحجر 7.6% من عرض اللوحة.
+    final stoneSize = size * .076;
 
     final stone = AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
       width: stoneSize,
       height: stoneSize,
       decoration: BoxDecoration(
@@ -1579,8 +1600,8 @@ class _GamePageState extends State<GamePage> {
                 colors: [
                   Color(0xffffffff),
                   Color(0xfff2f2f2),
-                  Color(0xffc4c4c4),
-                  Color(0xff808080),
+                  Color(0xffc2c2c2),
+                  Color(0xff8c8c8c),
                 ],
                 stops: [0, .3, .68, 1],
               )
@@ -1726,10 +1747,11 @@ class _GamePageState extends State<GamePage> {
     required bool active,
   }) {
     final t = widget.theme;
+    final remaining = (12 - placed).clamp(0, 12);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: t.wood,
         borderRadius: BorderRadius.circular(13),
@@ -1748,24 +1770,58 @@ class _GamePageState extends State<GamePage> {
       ),
       child: Row(
         children: [
-          _playerBall(player, 22),
+          _playerBall(player, 25),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   label,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: active ? t.accent : Colors.white,
+                    fontSize: 12,
                   ),
                 ),
-                Text(
-                  'الأحجار المتبقية: ${12 - placed}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.white70,
+                const SizedBox(height: 7),
+
+                // الأحجار المتبقية تظهر ككرات فعلية بدل النص.
+                SizedBox(
+                  height: 17,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      const ballSize = 13.0;
+                      const spacing = 4.0;
+
+                      final available = constraints.maxWidth;
+                      final totalWidth = 12 * ballSize + 11 * spacing;
+                      final scale = totalWidth > available
+                          ? available / totalWidth
+                          : 1.0;
+
+                      final actualBall = ballSize * scale;
+                      final actualSpacing = spacing * scale;
+
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(12, (index) {
+                          final visible = index < remaining;
+
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              right: index == 11 ? 0 : actualSpacing,
+                            ),
+                            child: AnimatedOpacity(
+                              opacity: visible ? 1 : 0.12,
+                              duration: const Duration(milliseconds: 250),
+                              child: _playerBall(player, actualBall),
+                            ),
+                          );
+                        }),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -1816,11 +1872,11 @@ class _GamePageState extends State<GamePage> {
                   Colors.black,
                 ],
               ),
-        boxShadow: const [
+        boxShadow: [
           BoxShadow(
-            color: Colors.black54,
-            blurRadius: 5,
-            offset: Offset(1, 2),
+            color: Colors.black.withOpacity(.55),
+            blurRadius: size * .22,
+            offset: Offset(1, size * .08),
           ),
         ],
       ),
@@ -1861,18 +1917,16 @@ class BoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
-    // ظل اللوحة.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         rect.deflate(2),
-        const Radius.circular(6),
+        const Radius.circular(18),
       ),
       Paint()
         ..color = Colors.black.withOpacity(.45)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
     );
 
-    // خلفية الخشب وعروقه.
     final boardRect = rect.deflate(3);
 
     final woodPaint = Paint()
@@ -1887,7 +1941,13 @@ class BoardPainter extends CustomPainter {
         ],
       ).createShader(boardRect);
 
-    canvas.drawRect(boardRect, woodPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        boardRect,
+        const Radius.circular(16),
+      ),
+      woodPaint,
+    );
 
     final grainPaint = Paint()
       ..color = const Color(0xff8b6038).withOpacity(.28)
@@ -1915,25 +1975,26 @@ class BoardPainter extends CustomPainter {
       );
     }
 
-    // الإطار الخارجي الأسود.
-    canvas.drawRect(
-      rect.deflate(size.width * .01),
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        rect.deflate(size.width * .01),
+        const Radius.circular(15),
+      ),
       Paint()
         ..color = const Color(0xff141414)
         ..style = PaintingStyle.stroke
         ..strokeWidth = size.width * .02,
     );
 
-    // الشبكة العنابية.
     final lineGlow = Paint()
-      ..color = const Color(0xff801313).withOpacity(.2)
+      ..color = const Color(0xff592616).withOpacity(.2)
       ..strokeWidth = size.width * .025
       ..strokeCap = StrokeCap.square
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
 
     final boardLines = Paint()
-      ..color = const Color(0xff801313)
-      ..strokeWidth = size.width * .011
+      ..color = const Color(0xff592616)
+      ..strokeWidth = size.width * .009
       ..strokeCap = StrokeCap.square
       ..style = PaintingStyle.stroke;
 
@@ -1952,7 +2013,6 @@ class BoardPainter extends CustomPainter {
       canvas.drawLine(a, b, boardLines);
     }
 
-    // الحفر الدائرية.
     for (final point in points) {
       final center = Offset(
         point.dx * size.width,
@@ -1988,7 +2048,6 @@ class BoardPainter extends CustomPainter {
       );
     }
 
-    // خط ضوئي خفيف عند تكوين ثبّت.
     if (millCelebration && highlightedMill.length == 3) {
       final a = Offset(
         points[highlightedMill.first].dx * size.width,
@@ -2020,13 +2079,15 @@ class BoardPainter extends CustomPainter {
       );
     }
 
-    // الإطار الداخلي.
-    canvas.drawRect(
-      rect.deflate(size.width * .018),
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        rect.deflate(size.width * .018),
+        const Radius.circular(14),
+      ),
       Paint()
-        ..color = const Color(0xff6b4428).withOpacity(.35)
+        ..color = const Color(0xffeac08e).withOpacity(.45)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = size.width * .002,
+        ..strokeWidth = size.width * .004,
     );
   }
 

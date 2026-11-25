@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:math';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -7,27 +9,41 @@ void main() {
   runApp(const ThabetApp());
 }
 
+class SoundEffects {
+  static final AudioPlayer _player = AudioPlayer();
+
+  static Future<void> play(String fileName, {required bool enabled}) async {
+    if (!enabled) return;
+    try {
+      await _player.stop();
+      await _player.play(AssetSource('sounds/$fileName'));
+    } catch (_) {}
+  }
+}
+
 enum AppThemePreset { wood, emerald, obsidian }
 
 enum AiDifficulty { medium, hard, extreme }
 
-enum GamePhase { placing, moving, flying, gameOver }
+enum GameMode { vsAi, localTwoPlayers }
+
+enum GamePhase { placing, moving, gameOver }
 
 enum TurnStage { selectOrPlace, removePiece }
 
 class GameSnapshot {
   final List<int?> board;
-  final int currentPlayer; // 1 = Player (بحمد), 2 = AI (الكمبيوتر)
-  final GamePhase phase;
-  final TurnStage stage;
-  final int p1RemainingToPlace;
-  final int p2RemainingToPlace;
-  final int p1PiecesOnBoard;
-  final int p2PiecesOnBoard;
-  final int? selectedIndex;
-  final String statusText;
-  final int? winner;
-  final Set<int> aiHighlightNodes;
+  int currentPlayer; // 1 = Player 1, 2 = Player 2 / AI
+  GamePhase phase;
+  TurnStage stage;
+  int p1RemainingToPlace;
+  int p2RemainingToPlace;
+  int p1PiecesOnBoard;
+  int p2PiecesOnBoard;
+  int? selectedIndex;
+  String statusText;
+  int? winner;
+  Set<int> lastMovedNodes;
 
   GameSnapshot({
     required this.board,
@@ -41,7 +57,7 @@ class GameSnapshot {
     required this.selectedIndex,
     required this.statusText,
     required this.winner,
-    required this.aiHighlightNodes,
+    required this.lastMovedNodes,
   });
 
   GameSnapshot clone() => GameSnapshot(
@@ -56,7 +72,7 @@ class GameSnapshot {
         selectedIndex: selectedIndex,
         statusText: statusText,
         winner: winner,
-        aiHighlightNodes: Set<int>.from(aiHighlightNodes),
+        lastMovedNodes: Set<int>.from(lastMovedNodes),
       );
 }
 
@@ -238,8 +254,7 @@ class ThabetHomeScreen extends StatefulWidget {
 }
 
 class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
-  // 24 positions on a standard 3 concentric squares board (0..23)
-  static const List<List<int>> mills = [
+  static const List<List<int>> thabetLines = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8],
     [9, 10, 11], [12, 13, 14], [15, 16, 17],
     [18, 19, 20], [21, 22, 23],
@@ -259,18 +274,12 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     21: [9, 22], 22: [16, 19, 21, 23], 23: [14, 22],
   };
 
-  // Normalized coordinates (0.0 to 1.0) for each of the 24 nodes
   static const List<Offset> nodeCoords = [
-    // Outer square
     Offset(0.08, 0.08), Offset(0.50, 0.08), Offset(0.92, 0.08),
-    // Middle square
     Offset(0.22, 0.22), Offset(0.50, 0.22), Offset(0.78, 0.22),
-    // Inner square
     Offset(0.36, 0.36), Offset(0.50, 0.36), Offset(0.64, 0.36),
-    // Left & Right middle connectors
     Offset(0.08, 0.50), Offset(0.22, 0.50), Offset(0.36, 0.50),
     Offset(0.64, 0.50), Offset(0.78, 0.50), Offset(0.92, 0.50),
-    // Bottom inner, middle, outer
     Offset(0.36, 0.64), Offset(0.50, 0.64), Offset(0.64, 0.64),
     Offset(0.22, 0.78), Offset(0.50, 0.78), Offset(0.78, 0.78),
     Offset(0.08, 0.92), Offset(0.50, 0.92), Offset(0.92, 0.92),
@@ -278,7 +287,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
 
   late GameSnapshot _state;
   final List<GameSnapshot> _history = [];
-  bool _vsAi = true;
+  GameMode _gameMode = GameMode.vsAi;
   bool _aiThinking = false;
   bool _resultRecorded = false;
   final Random _rng = Random();
@@ -304,32 +313,34 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         p1PiecesOnBoard: 0,
         p2PiecesOnBoard: 0,
         selectedIndex: null,
-        statusText: 'دورك: ضع قطعة على اللوحة',
+        statusText: _gameMode == GameMode.vsAi
+            ? 'دورك: ضع قطعة على اللوحة'
+            : 'دور اللاعب 1 (أبيض): ضع قطعة',
         winner: null,
-        aiHighlightNodes: {},
+        lastMovedNodes: {},
       );
     });
-    if (triggerAiIfNeeded && _vsAi && _state.currentPlayer == 2) {
+    if (triggerAiIfNeeded && _gameMode == GameMode.vsAi && _state.currentPlayer == 2) {
       _runAiTurn();
     }
   }
 
-  bool _formsMill(List<int?> board, int pos, int player) {
-    for (final m in mills) {
-      if (m.contains(pos) && m.every((idx) => board[idx] == player)) {
+  bool _formsThabet(List<int?> board, int pos, int player) {
+    for (final line in thabetLines) {
+      if (line.contains(pos) && line.every((idx) => board[idx] == player)) {
         return true;
       }
     }
     return false;
   }
 
-  bool _isPartOfAnyMill(List<int?> board, int pos, int player) {
-    return _formsMill(board, pos, player);
+  bool _isProtectedByThabet(List<int?> board, int pos, int player) {
+    return _formsThabet(board, pos, player);
   }
 
-  bool _allOpponentInMills(List<int?> board, int opponent) {
+  bool _allOpponentProtected(List<int?> board, int opponent) {
     for (int i = 0; i < 24; i++) {
-      if (board[i] == opponent && !_isPartOfAnyMill(board, i, opponent)) {
+      if (board[i] == opponent && !_isProtectedByThabet(board, i, opponent)) {
         return false;
       }
     }
@@ -340,16 +351,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     if (remainingToPlace > 0) {
       return board.any((cell) => cell == null);
     }
-    int count = board.where((c) => c == player).length;
-    bool canFly = count <= 3;
     for (int i = 0; i < 24; i++) {
       if (board[i] == player) {
-        if (canFly) {
-          if (board.any((c) => c == null)) return true;
-        } else {
-          for (final n in adjacent[i]!) {
-            if (board[n] == null) return true;
-          }
+        for (final n in adjacent[i]!) {
+          if (board[n] == null) return true;
         }
       }
     }
@@ -373,25 +378,25 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     if (snap.p1PiecesOnBoard < 3) {
       snap.winner = 2;
       snap.phase = GamePhase.gameOver;
-      snap.statusText = 'فاز ${widget.aiName}🤖 (بحمد)!';
+      snap.statusText = _gameMode == GameMode.vsAi ? 'فاز ${widget.aiName}🤖 (بحمد)!' : 'فاز اللاعب 2!';
       return;
     }
     if (snap.p2PiecesOnBoard < 3) {
       snap.winner = 1;
       snap.phase = GamePhase.gameOver;
-      snap.statusText = 'مبروك! فزت بالجولة 👑';
+      snap.statusText = _gameMode == GameMode.vsAi ? 'مبروك! فزت بالجولة 👑' : 'فاز اللاعب 1!';
       return;
     }
 
-    snap.phase = (snap.currentPlayer == 1 ? snap.p1PiecesOnBoard : snap.p2PiecesOnBoard) <= 3
-        ? GamePhase.flying
-        : GamePhase.moving;
+    snap.phase = GamePhase.moving;
 
     int rem = snap.currentPlayer == 1 ? snap.p1RemainingToPlace : snap.p2RemainingToPlace;
     if (!_hasAnyLegalMove(snap.board, snap.currentPlayer, snap.phase, rem)) {
       snap.winner = snap.currentPlayer == 1 ? 2 : 1;
       snap.phase = GamePhase.gameOver;
-      snap.statusText = snap.winner == 1 ? 'مبروك! فزت بالجولة 👑' : 'فاز ${widget.aiName}🤖 (بحمد)!';
+      snap.statusText = snap.winner == 1
+          ? (_gameMode == GameMode.vsAi ? 'مبروك! فزت بالجولة 👑' : 'فاز اللاعب 1!')
+          : (_gameMode == GameMode.vsAi ? 'فاز ${widget.aiName}🤖 (بحمد)!' : 'فاز اللاعب 2!');
     }
   }
 
@@ -402,9 +407,17 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     }
   }
 
+  String _nextTurnPrompt(int turnPlayer, GamePhase phase) {
+    final action = phase == GamePhase.placing ? 'ضع قطعة' : 'حرّك قطعة إلى نقطة مجاورة';
+    if (_gameMode == GameMode.vsAi) {
+      return turnPlayer == 2 ? 'يفكر ${widget.aiName}🤖 (بحمد)...' : 'دورك: $action';
+    }
+    return turnPlayer == 1 ? 'دور اللاعب 1 (أبيض): $action' : 'دور اللاعب 2 (أحمر): $action';
+  }
+
   void _onNodeTap(int index) {
     if (_aiThinking || _state.phase == GamePhase.gameOver) return;
-    if (_vsAi && _state.currentPlayer == 2) return;
+    if (_gameMode == GameMode.vsAi && _state.currentPlayer == 2) return;
 
     final next = _state.clone();
     final player = next.currentPlayer;
@@ -415,30 +428,29 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         setState(() => next.statusText = 'اختر قطعة للخصم لإزالتها');
         return;
       }
-      if (!_allOpponentInMills(next.board, opponent) && _isPartOfAnyMill(next.board, index, opponent)) {
-        setState(() => next.statusText = 'لا يمكن إزالة قطعة داخل طاحونة مكتملة');
+      if (!_allOpponentProtected(next.board, opponent) && _isProtectedByThabet(next.board, index, opponent)) {
+        setState(() => next.statusText = 'لا يمكن إزالة قطعة محمية بـ «ثبت» مكتمل');
         return;
       }
       _history.add(_state.clone());
       next.board[index] = null;
       next.stage = TurnStage.selectOrPlace;
       next.selectedIndex = null;
+      next.lastMovedNodes = {index};
       next.currentPlayer = opponent;
       _syncCountsAndPhase(next);
       if (next.phase != GamePhase.gameOver) {
-        next.statusText = next.currentPlayer == 2
-            ? 'يفكر ${widget.aiName}🤖 (بحمد)...'
-            : 'دورك الآن';
+        next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
       }
+      SoundEffects.play('remove.wav', enabled: widget.soundEnabled);
       setState(() => _state = next);
       _checkGameOverNotification(_state);
-      if (_vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
+      if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
         _runAiTurn();
       }
       return;
     }
 
-    // Placing phase
     if (next.phase == GamePhase.placing) {
       if (next.board[index] != null) return;
       _history.add(_state.clone());
@@ -448,42 +460,41 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       } else {
         next.p2RemainingToPlace -= 1;
       }
+      next.lastMovedNodes = {index};
       _syncCountsAndPhase(next);
 
-      if (_formsMill(next.board, index, player)) {
+      if (_formsThabet(next.board, index, player)) {
         next.stage = TurnStage.removePiece;
-        next.statusText = 'طاحونة! اختر قطعة للخصم لإزالتها';
+        next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
+        SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
       } else {
         next.currentPlayer = opponent;
         _syncCountsAndPhase(next);
         if (next.phase != GamePhase.gameOver) {
-          next.statusText = next.currentPlayer == 2
-              ? 'يفكر ${widget.aiName}🤖 (بحمد)...'
-              : 'دورك: ضع أو حرّك قطعة';
+          next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
         }
+        SoundEffects.play('place.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
         _checkGameOverNotification(_state);
-        if (_vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
+        if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
           _runAiTurn();
         }
       }
       return;
     }
 
-    // Moving or Flying phase
     if (next.board[index] == player) {
       setState(() {
         _state.selectedIndex = index;
-        _state.statusText = 'تم تحديد القطعة، اختر نقطة فارغة';
+        _state.statusText = 'تم تحديد القطعة — اختر نقطة مجاورة فارغة';
       });
       return;
     }
 
     if (next.selectedIndex != null && next.board[index] == null) {
       final from = next.selectedIndex!;
-      bool canFly = (player == 1 ? next.p1PiecesOnBoard : next.p2PiecesOnBoard) <= 3;
-      bool validMove = canFly || (adjacent[from]?.contains(index) ?? false);
+      bool validMove = adjacent[from]?.contains(index) ?? false;
       if (!validMove) {
         setState(() => _state.statusText = 'النقطة غير متجاورة مع القطعة المحددة');
         return;
@@ -493,23 +504,24 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       next.board[from] = null;
       next.board[index] = player;
       next.selectedIndex = null;
+      next.lastMovedNodes = {from, index};
       _syncCountsAndPhase(next);
 
-      if (_formsMill(next.board, index, player)) {
+      if (_formsThabet(next.board, index, player)) {
         next.stage = TurnStage.removePiece;
-        next.statusText = 'طاحونة! اختر قطعة للخصم لإزالتها';
+        next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
+        SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
       } else {
         next.currentPlayer = opponent;
         _syncCountsAndPhase(next);
         if (next.phase != GamePhase.gameOver) {
-          next.statusText = next.currentPlayer == 2
-              ? 'يفكر ${widget.aiName}🤖 (بحمد)...'
-              : 'دورك: اختر قطعة لتحريكها';
+          next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
         }
+        SoundEffects.play('place.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
         _checkGameOverNotification(_state);
-        if (_vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
+        if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
           _runAiTurn();
         }
       }
@@ -520,7 +532,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     if (_aiThinking || _history.isEmpty) return;
     while (_history.isNotEmpty) {
       final prev = _history.removeLast();
-      if (!_vsAi || prev.currentPlayer == 1) {
+      if (_gameMode != GameMode.vsAi || prev.currentPlayer == 1) {
         setState(() {
           _state = prev;
           _resultRecorded = false;
@@ -530,11 +542,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     }
   }
 
-  // ==================== VERY HARD AI ENGINE ====================
   Future<void> _runAiTurn() async {
     setState(() {
       _aiThinking = true;
-      _state.statusText = 'يفكر ${widget.aiName}🤖 (بحمد) بعمق...';
+      _state.statusText = 'يفكر ${widget.aiName}🤖 (بحمد)...';
     });
 
     await Future.delayed(const Duration(milliseconds: 220));
@@ -564,14 +575,15 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     if (next.p2RemainingToPlace > 0) {
       next.p2RemainingToPlace -= 1;
     }
-    next.aiHighlightNodes = highlights;
+    next.lastMovedNodes = highlights;
     _syncCountsAndPhase(next);
 
-    if (_formsMill(next.board, bestMove.to, 2)) {
+    bool madeThabet = _formsThabet(next.board, bestMove.to, 2);
+    if (madeThabet) {
       final victim = _chooseBestRemovalTarget(next.board, 1);
       if (victim != null) {
         next.board[victim] = null;
-        next.aiHighlightNodes.add(victim);
+        next.lastMovedNodes.add(victim);
       }
     }
 
@@ -580,9 +592,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     next.selectedIndex = null;
     _syncCountsAndPhase(next);
     if (next.phase != GamePhase.gameOver) {
-      next.statusText = 'دورك الآن (آخر نقلة للكمبيوتر مميزة)';
+      next.statusText = _nextTurnPrompt(1, next.phase);
     }
 
+    SoundEffects.play(madeThabet ? 'mill.wav' : 'place.wav', enabled: widget.soundEnabled);
     setState(() {
       _state = next;
       _aiThinking = false;
@@ -594,18 +607,11 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     final moves = _generateMovesForPlayer(snap.board, 2, snap.p2RemainingToPlace);
     if (moves.isEmpty) return null;
 
-    int depth;
-    switch (widget.difficulty) {
-      case AiDifficulty.medium:
-        depth = 2;
-        break;
-      case AiDifficulty.hard:
-        depth = 3;
-        break;
-      case AiDifficulty.extreme:
-        depth = 4;
-        break;
-    }
+    int depth = switch (widget.difficulty) {
+      AiDifficulty.medium => 2,
+      AiDifficulty.hard => 3,
+      AiDifficulty.extreme => 4,
+    };
 
     moves.sort((a, b) => _quickMovePriority(snap.board, b).compareTo(_quickMovePriority(snap.board, a)));
 
@@ -631,7 +637,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     final b = List<int?>.from(board);
     if (m.from != null) b[m.from!] = null;
     b[m.to] = 2;
-    if (_formsMill(b, m.to, 2)) p += 500;
+    if (_formsThabet(b, m.to, 2)) p += 500;
     p += (adjacent[m.to]?.length ?? 0) * 15;
     return p;
   }
@@ -640,25 +646,14 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     final res = <_AiMove>[];
     if (remainingToPlace > 0) {
       for (int i = 0; i < 24; i++) {
-        if (board[i] == null) {
-          res.add(_AiMove(from: null, to: i));
-        }
+        if (board[i] == null) res.add(_AiMove(from: null, to: i));
       }
       return res;
     }
-
-    int count = board.where((c) => c == player).length;
-    bool canFly = count <= 3;
     for (int i = 0; i < 24; i++) {
       if (board[i] == player) {
-        if (canFly) {
-          for (int j = 0; j < 24; j++) {
-            if (board[j] == null) res.add(_AiMove(from: i, to: j));
-          }
-        } else {
-          for (final n in adjacent[i]!) {
-            if (board[n] == null) res.add(_AiMove(from: i, to: n));
-          }
+        for (final n in adjacent[i]!) {
+          if (board[n] == null) res.add(_AiMove(from: i, to: n));
         }
       }
     }
@@ -672,7 +667,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     if (player == 1 && s.p1RemainingToPlace > 0) s.p1RemainingToPlace -= 1;
     if (player == 2 && s.p2RemainingToPlace > 0) s.p2RemainingToPlace -= 1;
 
-    if (_formsMill(s.board, m.to, player)) {
+    if (_formsThabet(s.board, m.to, player)) {
       final opp = player == 1 ? 2 : 1;
       final victim = _chooseBestRemovalTarget(s.board, opp);
       if (victim != null) s.board[victim] = null;
@@ -686,17 +681,17 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   int? _chooseBestRemovalTarget(List<int?> board, int opponent) {
     int? bestIdx;
     int bestScore = -100000;
-    bool allInMills = _allOpponentInMills(board, opponent);
+    bool allProtected = _allOpponentProtected(board, opponent);
 
     for (int i = 0; i < 24; i++) {
       if (board[i] != opponent) continue;
-      if (!allInMills && _isPartOfAnyMill(board, i, opponent)) continue;
+      if (!allProtected && _isProtectedByThabet(board, i, opponent)) continue;
 
       int score = 0;
-      for (final m in mills) {
-        if (!m.contains(i)) continue;
-        int oppCount = m.where((idx) => board[idx] == opponent).length;
-        int emptyCount = m.where((idx) => board[idx] == null).length;
+      for (final line in thabetLines) {
+        if (!line.contains(i)) continue;
+        int oppCount = line.where((idx) => board[idx] == opponent).length;
+        int emptyCount = line.where((idx) => board[idx] == null).length;
         if (oppCount == 2 && emptyCount == 1) score += 120;
         if (oppCount == 1 && emptyCount == 2) score += 25;
       }
@@ -717,9 +712,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     final player = maximizingAi ? 2 : 1;
     final rem = player == 1 ? s.p1RemainingToPlace : s.p2RemainingToPlace;
     final moves = _generateMovesForPlayer(s.board, player, rem);
-    if (moves.isEmpty) {
-      return maximizingAi ? -90000 : 90000;
-    }
+    if (moves.isEmpty) return maximizingAi ? -90000 : 90000;
 
     if (maximizingAi) {
       int value = -1000000;
@@ -751,10 +744,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     int aiOpenTwo = 0;
     int p1OpenTwo = 0;
 
-    for (final m in mills) {
-      int c2 = m.where((idx) => s.board[idx] == 2).length;
-      int c1 = m.where((idx) => s.board[idx] == 1).length;
-      int emp = m.where((idx) => s.board[idx] == null).length;
+    for (final line in thabetLines) {
+      int c2 = line.where((idx) => s.board[idx] == 2).length;
+      int c1 = line.where((idx) => s.board[idx] == 1).length;
+      int emp = line.where((idx) => s.board[idx] == null).length;
 
       if (c2 == 3) score += 180;
       if (c1 == 3) score -= 190;
@@ -779,78 +772,36 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     return score;
   }
 
-  String _difficultyLabel(AiDifficulty d) {
-    switch (d) {
-      case AiDifficulty.medium:
-        return 'متوسط';
-      case AiDifficulty.hard:
-        return 'صعب';
-      case AiDifficulty.extreme:
-        return 'صعب جداً 🔥';
-    }
-  }
+  String _difficultyLabel(AiDifficulty d) => switch (d) {
+        AiDifficulty.medium => 'متوسط',
+        AiDifficulty.hard => 'صعب',
+        AiDifficulty.extreme => 'صعب جداً 🔥',
+      };
 
-  String _themeLabel(AppThemePreset t) {
-    switch (t) {
-      case AppThemePreset.wood:
-        return 'خشبي ملكي';
-      case AppThemePreset.emerald:
-        return 'زمردي';
-      case AppThemePreset.obsidian:
-        return 'ليلي ذهبي';
-    }
-  }
+  String _themeLabel(AppThemePreset t) => switch (t) {
+        AppThemePreset.wood => 'خشبي ملكي',
+        AppThemePreset.emerald => 'زمردي',
+        AppThemePreset.obsidian => 'ليلي ذهبي',
+      };
 
   void _openRulesDialog() {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('قوانين لعبة «ثبت»'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _ruleSection(
-                '1. مرحلة الوضع',
-                'يضع كل لاعب 9 قطع بالتناوب على نقاط التقاطع الفارغة في اللوحة.',
-              ),
-              const SizedBox(height: 10),
-              _ruleSection(
-                '2. تكوين «ثبت» (طاحونة)',
-                'عندما تصطف 3 قطع من لونك على خط مستقيم، يتكون «ثبت» وتتمكن من إزالة قطعة للخصم (لا يُزال حجر داخل طاحونة مكتملة إلا إذا كانت كل قطع الخصم في طواحين).',
-              ),
-              const SizedBox(height: 10),
-              _ruleSection(
-                '3. التحريك والطيران',
-                'بعد إنهاء وضع القطع، حرّك قطعة إلى نقطة مجاورة فارغة. إذا بقي لك 3 قطع فقط يمكنك «الطيران» إلى أي نقطة فارغة على اللوحة.',
-              ),
-              const SizedBox(height: 10),
-              _ruleSection(
-                '4. الفوز وتحدي الكمبيوتر',
-                'تفوز إذا انخفضت قطع الخصم إلى أقل من 3 قطع أو تعذرت عليه أي حركة قانونية. يمكنك تجربة التحدي أمام ${widget.aiName}🤖 (بحمد) على مستوى «صعب جداً 🔥».',
-              ),
-            ],
+        title: const Text('قوانين «ثبت»'),
+        content: const SingleChildScrollView(
+          child: Text(
+            '• ضع 9 قطع لكل لاعب بالتناوب على نقاط التقاطع الفارغة.\n'
+            '• عند اكتمال 3 قطع في صف مستقيم («ثبت») أزل قطعة للخصم غير محمية بصف مكتمل.\n'
+            '• حرّك قطعة إلى نقطة مجاورة فارغة فقط.\n'
+            '• يفوز اللاعب إذا قلت قطع الخصم عن 3 أو حُصرت حركاته.',
+            style: TextStyle(height: 1.55),
           ),
         ),
         actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('فهمت'),
-          ),
+          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('فهمت')),
         ],
       ),
-    );
-  }
-
-  Widget _ruleSection(String title, String body) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-        const SizedBox(height: 3),
-        Text(body, style: const TextStyle(fontSize: 13.5, height: 1.45)),
-      ],
     );
   }
 
@@ -863,8 +814,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('الإعدادات (محفوظة تلقائياً)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
+            const Text('الإعدادات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             SwitchListTile(
               title: const Text('المؤثرات الصوتية'),
               value: widget.soundEnabled,
@@ -873,8 +823,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
                 Navigator.pop(context);
               },
             ),
-            const SizedBox(height: 8),
-            const Text('مستوى صعوبة ${widget.aiName}🤖 (بحمد):'),
+            Text('مستوى ${widget.aiName}🤖 (بحمد):'),
             const SizedBox(height: 6),
             SegmentedButton<AiDifficulty>(
               segments: AiDifficulty.values
@@ -887,7 +836,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
               },
             ),
             const SizedBox(height: 12),
-            const Text('ثيم اللوحة:'),
+            const Text('الثيم:'),
             const SizedBox(height: 6),
             SegmentedButton<AppThemePreset>(
               segments: AppThemePreset.values
@@ -906,19 +855,19 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   }
 
   void _openStatsDialog() {
-    final winRate = widget.totalGames == 0 ? 0 : ((widget.wins / widget.totalGames) * 100).round();
+    final rate = widget.totalGames == 0 ? 0 : ((widget.wins / widget.totalGames) * 100).round();
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('سجل إحصائيات اللاعب'),
+        title: const Text('الإحصائيات'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _statRow('إجمالي المباريات', '${widget.totalGames}'),
-            _statRow('مرات الفوز', '${widget.wins}'),
-            _statRow('مرات الخسارة', '${widget.losses}'),
-            _statRow('التعادلات', '${widget.draws}'),
-            _statRow('نسبة الفوز', '$winRate%'),
+            Text('المباريات: ${widget.totalGames}'),
+            Text('الفوز: ${widget.wins}'),
+            Text('الخسارة: ${widget.losses}'),
+            Text('التعادل: ${widget.draws}'),
+            Text('نسبة الفوز: $rate%'),
           ],
         ),
         actions: [
@@ -927,35 +876,17 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
               widget.onResetStats();
               Navigator.pop(context);
             },
-            child: const Text('تصفير السجل'),
+            child: const Text('تصفير'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إغلاق'),
-          ),
+          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
         ],
-      ),
-    );
-  }
-
-  Widget _statRow(String label, String val) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [Text(label), Text(val, style: const TextStyle(fontWeight: FontWeight.bold))],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final effectiveAiName = '${widget.aiName}🤖 (بحمد)';
-    final boardBg = switch (widget.themePreset) {
-      AppThemePreset.wood => const Color(0xFF3A2312),
-      AppThemePreset.emerald => const Color(0xFF10382C),
-      AppThemePreset.obsidian => const Color(0xFF1A1C22),
-    };
+    final aiTitle = '${widget.aiName}🤖 (بحمد)';
     final lineColor = switch (widget.themePreset) {
       AppThemePreset.wood => const Color(0xFFD9A066),
       AppThemePreset.emerald => const Color(0xFF6EE7B7),
@@ -965,92 +896,86 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.brandTitle),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
-          IconButton(icon: const Icon(Icons.help_outline), tooltip: 'قوانين اللعبة', onPressed: _openRulesDialog),
-          IconButton(icon: const Icon(Icons.bar_chart), tooltip: 'الإحصائيات', onPressed: _openStatsDialog),
-          IconButton(icon: const Icon(Icons.settings), tooltip: 'الإعدادات', onPressed: _openSettingsSheet),
+          IconButton(icon: const Icon(Icons.help_outline), onPressed: _openRulesDialog),
+          IconButton(icon: const Icon(Icons.bar_chart), onPressed: _openStatsDialog),
+          IconButton(icon: const Icon(Icons.settings), onPressed: _openSettingsSheet),
         ],
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           child: Column(
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   ChoiceChip(
-                    label: Text(_vsAi ? 'ضد $effectiveAiName' : 'لاعبان'),
-                    selected: _vsAi,
-                    onSelected: (v) {
-                      setState(() => _vsAi = true);
+                    label: Text('ضد $aiTitle'),
+                    selected: _gameMode == GameMode.vsAi,
+                    onSelected: (_) {
+                      setState(() => _gameMode = GameMode.vsAi);
                       _startNewGame();
                     },
                   ),
-                  Text('المستوى: ${_difficultyLabel(widget.difficulty)}', style: const TextStyle(fontSize: 13)),
-                  TextButton.icon(
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('لاعبان'),
+                    selected: _gameMode == GameMode.localTwoPlayers,
+                    onSelected: (_) {
+                      setState(() => _gameMode = GameMode.localTwoPlayers);
+                      _startNewGame(triggerAiIfNeeded: false);
+                    },
+                  ),
+                  const Spacer(),
+                  IconButton(
                     onPressed: _history.isNotEmpty && !_aiThinking ? _undoLastTurn : null,
-                    icon: const Icon(Icons.undo, size: 18),
-                    label: const Text('تراجع'),
+                    icon: const Icon(Icons.undo),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _state.statusText,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
+              const SizedBox(height: 8),
+              Text(
+                _state.statusText,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Expanded(
                 child: AspectRatio(
                   aspectRatio: 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: boardBg,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: lineColor.withValues(alpha: 0.5), width: 2),
-                    ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        return Stack(
-                          children: [
-                            CustomPaint(
-                              size: Size(w, h),
-                              painter: _ThabetBoardPainter(lineColor: lineColor, coords: nodeCoords),
-                            ),
-                            for (int i = 0; i < 24; i++)
-                              Positioned(
-                                left: nodeCoords[i].dx * w - 20,
-                                top: nodeCoords[i].dy * h - 20,
-                                child: GestureDetector(
-                                  onTap: () => _onNodeTap(i),
-                                  child: _buildNodeWidget(i),
-                                ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final w = constraints.maxWidth;
+                      final h = constraints.maxHeight;
+                      return Stack(
+                        children: [
+                          CustomPaint(
+                            size: Size(w, h),
+                            painter: _ThabetBoardPainter(lineColor: lineColor, coords: nodeCoords),
+                          ),
+                          for (int i = 0; i < 24; i++)
+                            Positioned(
+                              left: nodeCoords[i].dx * w - 22,
+                              top: nodeCoords[i].dy * h - 22,
+                              child: GestureDetector(
+                                onTap: () => _onNodeTap(i),
+                                child: _buildFloatingPiece(i, lineColor),
                               ),
-                          ],
-                        );
-                      },
-                    ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Text('أنت (أبيض): ${_state.p1PiecesOnBoard + _state.p1RemainingToPlace}'),
-                  Text('$effectiveAiName (أحمر): ${_state.p2PiecesOnBoard + _state.p2RemainingToPlace}'),
+                  Text('اللاعب 1: ${_state.p1PiecesOnBoard + _state.p1RemainingToPlace}'),
+                  Text('اللاعب 2: ${_state.p2PiecesOnBoard + _state.p2RemainingToPlace}'),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1069,35 +994,54 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     );
   }
 
-  Widget _buildNodeWidget(int idx) {
+  Widget _buildFloatingPiece(int idx, Color lineColor) {
     final occupant = _state.board[idx];
     final isSelected = _state.selectedIndex == idx;
-    final isAiLast = _state.aiHighlightNodes.contains(idx);
+    final isHighlighted = _state.lastMovedNodes.contains(idx);
 
-    Color fill;
-    if (occupant == 1) {
-      fill = const Color(0xFFF8FAFC);
-    } else if (occupant == 2) {
-      fill = const Color(0xFFEF4444);
-    } else {
-      fill = Colors.amber.withValues(alpha: 0.22);
+    if (occupant == null) {
+      return SizedBox(
+        width: 44,
+        height: 44,
+        child: Center(
+          child: Container(
+            width: 13,
+            height: 13,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: lineColor.withValues(alpha: 0.4),
+            ),
+          ),
+        ),
+      );
     }
 
+    final colors = occupant == 1
+        ? const [Color(0xFFFFFFFF), Color(0xFFCBD5E1)]
+        : const [Color(0xFFFF7A7A), Color(0xFFDC2626)];
+
+    final shadowColor = isSelected
+        ? Colors.cyanAccent
+        : (isHighlighted ? Colors.amberAccent : Colors.black.withValues(alpha: 0.45));
+
     return Container(
-      width: 40,
-      height: 40,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: fill,
-        border: Border.all(
-          color: isSelected
-              ? Colors.cyanAccent
-              : (isAiLast ? Colors.orangeAccent : Colors.black54),
-          width: isSelected || isAiLast ? 3.5 : 1.5,
+        gradient: RadialGradient(
+          center: const Alignment(-0.32, -0.35),
+          radius: 0.75,
+          colors: colors,
         ),
-        boxShadow: isAiLast
-            ? [const BoxShadow(color: Colors.orangeAccent, blurRadius: 8, spreadRadius: 1)]
-            : null,
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: (isSelected || isHighlighted) ? 14 : 8,
+            spreadRadius: (isSelected || isHighlighted) ? 2 : 0.5,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
     );
   }
@@ -1119,7 +1063,7 @@ class _ThabetBoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = lineColor
-      ..strokeWidth = 2.6
+      ..strokeWidth = 2.8
       ..style = PaintingStyle.stroke;
 
     void connect(int a, int b) {
@@ -1130,19 +1074,15 @@ class _ThabetBoardPainter extends CustomPainter {
       );
     }
 
-    // Outer square
     connect(0, 1); connect(1, 2); connect(2, 14); connect(14, 23);
     connect(23, 22); connect(22, 21); connect(21, 9); connect(9, 0);
 
-    // Middle square
     connect(3, 4); connect(4, 5); connect(5, 13); connect(13, 20);
     connect(20, 19); connect(19, 18); connect(18, 10); connect(10, 3);
 
-    // Inner square
     connect(6, 7); connect(7, 8); connect(8, 12); connect(12, 17);
     connect(17, 16); connect(16, 15); connect(15, 11); connect(11, 6);
 
-    // Cross connectors
     connect(1, 4); connect(4, 7);
     connect(9, 10); connect(10, 11);
     connect(12, 13); connect(13, 14);

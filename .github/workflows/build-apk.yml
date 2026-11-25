@@ -69,17 +69,15 @@ jobs:
               for root, dirs, files in os.walk("."):
                   dirs[:] = [d for d in dirs if d not in {".git", "android", "build", ".dart_tool"}]
                   for fn in files:
-                      if "57d593b5" in fn.lower():
+                      if "57d593b5" in fn.lower() or fn.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
                           src_icon = os.path.join(root, fn)
                           break
                   if src_icon:
                       break
 
           if not src_icon or not os.path.isfile(src_icon):
-              print("ERROR: Could not find image_57d593b5.jpg in repository.")
+              print("ERROR: Could not find icon image in repository.")
               sys.exit(1)
-
-          print(f"Found real icon source: {src_icon} ({os.path.getsize(src_icon)} bytes)")
 
           os.makedirs("assets/icon", exist_ok=True)
           converted_png = "assets/icon/ic_launcher_converted.png"
@@ -97,49 +95,27 @@ jobs:
                       im = im.convert("RGBA").resize((512, 512))
                       im.save(dst, format="PNG")
                   return is_valid_png(dst)
-              except Exception as exc:
-                  print(f"PIL attempt failed: {exc}")
+              except Exception:
                   return False
 
           png_ok = convert_with_pil(src_icon, converted_png)
 
           if not png_ok and shutil.which("apt-get"):
-              print("Installing python3-pil via apt-get...")
-              subprocess.run(
-                  ["sudo", "apt-get", "update", "-qq"],
-                  stdout=subprocess.DEVNULL,
-                  stderr=subprocess.DEVNULL,
-                  check=False,
-              )
-              subprocess.run(
-                  ["sudo", "apt-get", "install", "-y", "-qq", "python3-pil"],
-                  stdout=subprocess.DEVNULL,
-                  stderr=subprocess.DEVNULL,
-                  check=False,
-              )
+              subprocess.run(["sudo", "apt-get", "update", "-qq"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+              subprocess.run(["sudo", "apt-get", "install", "-y", "-qq", "python3-pil"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
               png_ok = convert_with_pil(src_icon, converted_png)
 
           if not png_ok and shutil.which("ffmpeg"):
-              res = subprocess.run(
-                  ["ffmpeg", "-y", "-i", src_icon, "-vf", "scale=512:512", converted_png],
-                  stdout=subprocess.DEVNULL,
-                  stderr=subprocess.DEVNULL,
-              )
+              res = subprocess.run(["ffmpeg", "-y", "-i", src_icon, "-vf", "scale=512:512", converted_png], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
               png_ok = res.returncode == 0 and is_valid_png(converted_png)
 
           if not png_ok and shutil.which("convert"):
-              res = subprocess.run(
-                  ["convert", src_icon, "-resize", "512x512!", converted_png],
-                  stdout=subprocess.DEVNULL,
-                  stderr=subprocess.DEVNULL,
-              )
+              res = subprocess.run(["convert", src_icon, "-resize", "512x512!", converted_png], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
               png_ok = res.returncode == 0 and is_valid_png(converted_png)
 
           if not png_ok:
-              print("ERROR: Failed to convert source JPEG/image into valid PNG.")
+              print("ERROR: Failed to convert source image into valid PNG.")
               sys.exit(1)
-
-          print(f"CONVERTED_FROM_REAL_IMAGE: {converted_png} ({os.path.getsize(converted_png)} bytes)")
 
           res_dir = "android/app/src/main/res"
           if os.path.isdir(res_dir):

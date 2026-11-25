@@ -11,7 +11,7 @@ void main() async {
   try {
     await Firebase.initializeApp();
   } catch (_) {
-    // Keeps offline play working safely if Firebase config is not attached yet
+    // Keeps offline mode working safely if Firebase config is not present
   }
   runApp(const ThabetApp());
 }
@@ -36,7 +36,7 @@ enum AiDifficulty { medium, hard, extreme }
 
 enum GameMode { vsAi, localTwoPlayers, onlineFriend }
 
-enum GamePhase { placing, moving, flying, gameOver }
+enum GamePhase { placing, moving, gameOver }
 
 enum TurnStage { selectOrPlace, removePiece }
 
@@ -53,6 +53,7 @@ class GameSnapshot {
   String statusText;
   int? winner;
   Set<int> aiHighlightNodes;
+  Set<int> activeLineNodes;
 
   GameSnapshot({
     required this.board,
@@ -67,7 +68,8 @@ class GameSnapshot {
     required this.statusText,
     required this.winner,
     required this.aiHighlightNodes,
-  });
+    Set<int>? activeLineNodes,
+  }) : activeLineNodes = activeLineNodes ?? <int>{};
 
   GameSnapshot clone() => GameSnapshot(
         board: List<int?>.from(board),
@@ -82,6 +84,7 @@ class GameSnapshot {
         statusText: statusText,
         winner: winner,
         aiHighlightNodes: Set<int>.from(aiHighlightNodes),
+        activeLineNodes: Set<int>.from(activeLineNodes),
       );
 
   Map<String, dynamic> toMap() => {
@@ -97,6 +100,7 @@ class GameSnapshot {
         'statusText': statusText,
         'winner': winner ?? 0,
         'aiHighlightNodes': aiHighlightNodes.toList(),
+        'activeLineNodes': activeLineNodes.toList(),
       };
 
   static GameSnapshot fromMap(Map<dynamic, dynamic> raw) {
@@ -114,11 +118,18 @@ class GameSnapshot {
     final highlights = ((raw['aiHighlightNodes'] as List<dynamic>?) ?? const [])
         .map((e) => (e as num).toInt())
         .toSet();
+    final activeLines = ((raw['activeLineNodes'] as List<dynamic>?) ?? const [])
+        .map((e) => (e as num).toInt())
+        .toSet();
+
+    final parsedPhase = phaseName == 'moving' || phaseName == 'flying'
+        ? GamePhase.moving
+        : (phaseName == 'gameOver' ? GamePhase.gameOver : GamePhase.placing);
 
     return GameSnapshot(
       board: rawBoard.take(24).toList(),
       currentPlayer: ((raw['currentPlayer'] as num?)?.toInt() ?? 1).clamp(1, 2),
-      phase: GamePhase.values.firstWhere((p) => p.name == phaseName, orElse: () => GamePhase.placing),
+      phase: parsedPhase,
       stage: TurnStage.values.firstWhere((s) => s.name == stageName, orElse: () => TurnStage.selectOrPlace),
       p1RemainingToPlace: (raw['p1RemainingToPlace'] as num?)?.toInt() ?? 9,
       p2RemainingToPlace: (raw['p2RemainingToPlace'] as num?)?.toInt() ?? 9,
@@ -128,6 +139,7 @@ class GameSnapshot {
       statusText: raw['statusText']?.toString() ?? 'دورك الآن',
       winner: winRaw == 1 || winRaw == 2 ? winRaw : null,
       aiHighlightNodes: highlights,
+      activeLineNodes: activeLines,
     );
   }
 }
@@ -348,7 +360,6 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   bool _resultRecorded = false;
   final Random _rng = Random();
 
-  // Online room state
   String? _roomCode;
   int _onlinePlayerId = 1;
   bool _friendJoined = false;
@@ -384,7 +395,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     final code = _generateRoomCode();
     final ref = _roomRef(code);
     if (ref == null) {
-      _showOnlineMessage('الأونلاين يحتاج ربط google-services.json وتفعيل Realtime Database في Firebase.');
+      _showOnlineMessage('الأونلاين يتطلب ربط ملف google-services.json وتفعيل Realtime Database في Firebase.');
       return;
     }
 
@@ -399,9 +410,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       p1PiecesOnBoard: 0,
       p2PiecesOnBoard: 0,
       selectedIndex: null,
-      statusText: 'الغرفة ($code) جاهزة — أرسل الكود لصديقك للانضمام',
+      statusText: 'غرفة ($code) جاهزة — شارك الكود مع صديقك للبدء',
       winner: null,
       aiHighlightNodes: {},
+      activeLineNodes: {},
     );
 
     try {
@@ -434,7 +446,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
 
     final ref = _roomRef(code);
     if (ref == null) {
-      _showOnlineMessage('الأونلاين يحتاج ربط google-services.json وتفعيل Realtime Database في Firebase.');
+      _showOnlineMessage('الأونلاين يتطلب ربط ملف google-services.json وتفعيل Realtime Database في Firebase.');
       return;
     }
 
@@ -515,7 +527,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'أنشئ غرفة جديدة وشارك كودها مع صديقك، أو أدخل كود غرفته للانضمام.',
+              'أنشئ غرفة وأرسل الكود لصديقك، أو أدخل كود الغرفة للانضمام المباشر.',
               style: TextStyle(fontSize: 13.5),
             ),
             const SizedBox(height: 12),
@@ -532,7 +544,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
               controller: controller,
               textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(
-                labelText: 'كود الغرفة',
+                labelText: 'أدخل كود الغرفة',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -570,6 +582,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         statusText: 'بدأت جولة أونلاين جديدة — دور اللاعب 1',
         winner: null,
         aiHighlightNodes: {},
+        activeLineNodes: {},
       );
       setState(() {
         _resultRecorded = false;
@@ -594,15 +607,26 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         p2PiecesOnBoard: 0,
         selectedIndex: null,
         statusText: _gameMode == GameMode.vsAi
-            ? 'دورك: ضع قطعة على اللوحة'
+            ? 'مرحلة الوضع: ضع قطعة (9 قطع لكل لاعب)'
             : 'دور اللاعب 1 (أبيض): ضع قطعة',
         winner: null,
         aiHighlightNodes: {},
+        activeLineNodes: {},
       );
     });
     if (triggerAiIfNeeded && _gameMode == GameMode.vsAi && _state.currentPlayer == 2) {
       _runAiTurn();
     }
+  }
+
+  Set<int> _completedLineNodesAt(List<int?> board, int pos, int player) {
+    final nodes = <int>{};
+    for (final line in thabetLines) {
+      if (line.contains(pos) && line.every((idx) => board[idx] == player)) {
+        nodes.addAll(line);
+      }
+    }
+    return nodes;
   }
 
   bool _formsThabet(List<int?> board, int pos, int player) {
@@ -627,20 +651,15 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     return true;
   }
 
+  // قواعد ثبت: لا يوجد طيران؛ التحريك يكون إلى نقطة مجاورة فارغة فقط
   bool _hasAnyLegalMove(List<int?> board, int player, GamePhase phase, int remainingToPlace) {
     if (remainingToPlace > 0) {
       return board.any((cell) => cell == null);
     }
-    int count = board.where((c) => c == player).length;
-    bool canFly = count <= 3;
     for (int i = 0; i < 24; i++) {
       if (board[i] == player) {
-        if (canFly) {
-          if (board.any((c) => c == null)) return true;
-        } else {
-          for (final n in adjacent[i]!) {
-            if (board[n] == null) return true;
-          }
+        for (final n in adjacent[i]!) {
+          if (board[n] == null) return true;
         }
       }
     }
@@ -674,9 +693,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       return;
     }
 
-    snap.phase = (snap.currentPlayer == 1 ? snap.p1PiecesOnBoard : snap.p2PiecesOnBoard) <= 3
-        ? GamePhase.flying
-        : GamePhase.moving;
+    snap.phase = GamePhase.moving;
 
     int rem = snap.currentPlayer == 1 ? snap.p1RemainingToPlace : snap.p2RemainingToPlace;
     if (!_hasAnyLegalMove(snap.board, snap.currentPlayer, snap.phase, rem)) {
@@ -699,14 +716,15 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     }
   }
 
-  String _nextTurnPrompt(int turnPlayer) {
+  String _nextTurnPrompt(int turnPlayer, GamePhase phase) {
+    final phaseLabel = phase == GamePhase.placing ? 'ضع قطعة' : 'حرّك قطعة إلى نقطة مجاورة';
     if (_gameMode == GameMode.vsAi) {
-      return turnPlayer == 2 ? 'يفكر ${widget.aiName}🤖 (بحمد)...' : 'دورك الآن';
+      return turnPlayer == 2 ? 'يفكر ${widget.aiName}🤖 (بحمد)...' : 'دورك: $phaseLabel';
     }
     if (_gameMode == GameMode.onlineFriend) {
-      return turnPlayer == _onlinePlayerId ? 'دورك الآن (أونلاين)' : 'بانتظار نقلة صديقك...';
+      return turnPlayer == _onlinePlayerId ? 'دورك: $phaseLabel' : 'بانتظار نقلة صديقك...';
     }
-    return turnPlayer == 1 ? 'دور اللاعب 1 (أبيض)' : 'دور اللاعب 2 (أحمر)';
+    return turnPlayer == 1 ? 'اللاعب 1 (أبيض): $phaseLabel' : 'اللاعب 2 (أحمر): $phaseLabel';
   }
 
   void _onNodeTap(int index) {
@@ -736,10 +754,11 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       next.board[index] = null;
       next.stage = TurnStage.selectOrPlace;
       next.selectedIndex = null;
+      next.activeLineNodes = {};
       next.currentPlayer = opponent;
       _syncCountsAndPhase(next);
       if (next.phase != GamePhase.gameOver) {
-        next.statusText = _nextTurnPrompt(next.currentPlayer);
+        next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
       }
       SoundEffects.play('remove.wav', enabled: widget.soundEnabled);
       setState(() => _state = next);
@@ -766,15 +785,17 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
 
       if (_formsThabet(next.board, index, player)) {
         next.stage = TurnStage.removePiece;
+        next.activeLineNodes = _completedLineNodesAt(next.board, index, player);
         next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
         SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
         _syncRoomGameState(next);
       } else {
+        next.activeLineNodes = {};
         next.currentPlayer = opponent;
         _syncCountsAndPhase(next);
         if (next.phase != GamePhase.gameOver) {
-          next.statusText = _nextTurnPrompt(next.currentPlayer);
+          next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
         }
         SoundEffects.play('place.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
@@ -790,17 +811,16 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     if (next.board[index] == player) {
       setState(() {
         _state.selectedIndex = index;
-        _state.statusText = 'تم تحديد القطعة، اختر نقطة فارغة';
+        _state.statusText = 'تم تحديد القطعة — اختر نقطة مجاورة فارغة';
       });
       return;
     }
 
     if (next.selectedIndex != null && next.board[index] == null) {
       final from = next.selectedIndex!;
-      bool canFly = (player == 1 ? next.p1PiecesOnBoard : next.p2PiecesOnBoard) <= 3;
-      bool validMove = canFly || (adjacent[from]?.contains(index) ?? false);
+      bool validMove = adjacent[from]?.contains(index) ?? false;
       if (!validMove) {
-        setState(() => _state.statusText = 'النقطة غير متجاورة مع القطعة المحددة');
+        setState(() => _state.statusText = 'في ثبت: التحريك للنقطة المجاورة المتصلة فقط');
         return;
       }
 
@@ -814,15 +834,17 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
 
       if (_formsThabet(next.board, index, player)) {
         next.stage = TurnStage.removePiece;
+        next.activeLineNodes = _completedLineNodesAt(next.board, index, player);
         next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
         SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
         _syncRoomGameState(next);
       } else {
+        next.activeLineNodes = {};
         next.currentPlayer = opponent;
         _syncCountsAndPhase(next);
         if (next.phase != GamePhase.gameOver) {
-          next.statusText = _nextTurnPrompt(next.currentPlayer);
+          next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
         }
         SoundEffects.play('place.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
@@ -849,7 +871,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     }
   }
 
-  // ==================== VERY HARD AI ENGINE ====================
+  // ==================== AI ENGINE ====================
   Future<void> _runAiTurn() async {
     setState(() {
       _aiThinking = true;
@@ -888,11 +910,14 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
 
     bool madeThabet = _formsThabet(next.board, bestMove.to, 2);
     if (madeThabet) {
+      next.activeLineNodes = _completedLineNodesAt(next.board, bestMove.to, 2);
       final victim = _chooseBestRemovalTarget(next.board, 1);
       if (victim != null) {
         next.board[victim] = null;
         next.aiHighlightNodes.add(victim);
       }
+    } else {
+      next.activeLineNodes = {};
     }
 
     next.currentPlayer = 1;
@@ -900,7 +925,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     next.selectedIndex = null;
     _syncCountsAndPhase(next);
     if (next.phase != GamePhase.gameOver) {
-      next.statusText = 'دورك الآن (آخر نقلة للكمبيوتر مميزة)';
+      next.statusText = _nextTurnPrompt(1, next.phase);
     }
 
     SoundEffects.play(madeThabet ? 'mill.wav' : 'place.wav', enabled: widget.soundEnabled);
@@ -968,18 +993,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       return res;
     }
 
-    int count = board.where((c) => c == player).length;
-    bool canFly = count <= 3;
     for (int i = 0; i < 24; i++) {
       if (board[i] == player) {
-        if (canFly) {
-          for (int j = 0; j < 24; j++) {
-            if (board[j] == null) res.add(_AiMove(from: i, to: j));
-          }
-        } else {
-          for (final n in adjacent[i]!) {
-            if (board[n] == null) res.add(_AiMove(from: i, to: n));
-          }
+        for (final n in adjacent[i]!) {
+          if (board[n] == null) res.add(_AiMove(from: i, to: n));
         }
       }
     }
@@ -1132,13 +1149,13 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _ruleSection('1. مرحلة الوضع', 'يضع كل لاعب 9 قطع بالتناوب على نقاط التقاطع الفارغة في اللوحة.'),
+              _ruleSection('1. مرحلة الوضع', 'يضع كل لاعب 9 قطع بالتناوب على نقاط التقاطع الفارغة.'),
               const SizedBox(height: 10),
               _ruleSection('2. تحقيق «ثبت»', 'صف 3 قطع من لونك على خط مستقيم لتحقيق «ثبت» وإزالة قطعة للخصم (لا تُزال قطعة محمية بـ «ثبت» مكتمل إلا إذا كانت كل قطع الخصم محمية).'),
               const SizedBox(height: 10),
-              _ruleSection('3. التحريك والطيران', 'حرّك قطعة إلى نقطة مجاورة فارغة؛ وعندما يبقى لك 3 قطع فقط يمكنك الطيران لأي نقطة فارغة.'),
+              _ruleSection('3. التحريك المتصل', 'في ثبت يُحرّك اللاعب قطعته إلى نقطة مجاورة فارغة متصلة بالخط، ولا يوجد طيران.'),
               const SizedBox(height: 10),
-              _ruleSection('4. الفوز والتحدي', 'تفوز إذا قلت قطع الخصم عن 3 أو حُصرت حركاته، ويمكنك اللعب ضد ${widget.aiName}🤖 (بحمد) أو لاعبين أو أونلاين مع صديقك.'),
+              _ruleSection('4. الفوز والأنماط', 'تفوز إذا قلت قطع الخصم عن 3 أو حُصرت حركاته، ويمكن اللعب ضد ${widget.aiName}🤖 (بحمد) أو أونلاين مع صديق.'),
             ],
           ),
         ),
@@ -1254,11 +1271,6 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final effectiveAiName = '${widget.aiName}🤖 (بحمد)';
-    final boardBg = switch (widget.themePreset) {
-      AppThemePreset.wood => const Color(0xFF3A2312),
-      AppThemePreset.emerald => const Color(0xFF10382C),
-      AppThemePreset.obsidian => const Color(0xFF1A1C22),
-    };
     final lineColor = switch (widget.themePreset) {
       AppThemePreset.wood => const Color(0xFFD9A066),
       AppThemePreset.emerald => const Color(0xFF6EE7B7),
@@ -1268,6 +1280,8 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.brandTitle),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(icon: const Icon(Icons.help_outline), tooltip: 'قوانين اللعبة', onPressed: _openRulesDialog),
           IconButton(icon: const Icon(Icons.bar_chart), tooltip: 'الإحصائيات', onPressed: _openStatsDialog),
@@ -1276,113 +1290,99 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           child: Column(
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              // شريط أنماط اللعب في صف نظيف بدون إطارات مزعجة
+              Row(
                 children: [
-                  ChoiceChip(
-                    label: Text('ضد $effectiveAiName'),
-                    selected: _gameMode == GameMode.vsAi,
-                    onSelected: (_) {
-                      _roomSub?.cancel();
-                      setState(() {
-                        _gameMode = GameMode.vsAi;
-                        _roomCode = null;
-                      });
-                      _startNewGame();
-                    },
+                  Expanded(
+                    child: ChoiceChip(
+                      label: Text('ضد $effectiveAiName', overflow: TextOverflow.ellipsis),
+                      selected: _gameMode == GameMode.vsAi,
+                      onSelected: (_) {
+                        _roomSub?.cancel();
+                        setState(() {
+                          _gameMode = GameMode.vsAi;
+                          _roomCode = null;
+                        });
+                        _startNewGame();
+                      },
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   ChoiceChip(
                     label: const Text('أونلاين 🌐'),
                     selected: _gameMode == GameMode.onlineFriend,
                     onSelected: (_) => _openOnlineLobbyDialog(),
                   ),
-                  TextButton.icon(
+                  const SizedBox(width: 4),
+                  IconButton(
                     onPressed: _history.isNotEmpty && !_aiThinking && _gameMode != GameMode.onlineFriend
                         ? _undoLastTurn
                         : null,
-                    icon: const Icon(Icons.undo, size: 18),
-                    label: const Text('تراجع'),
+                    tooltip: 'تراجع',
+                    icon: const Icon(Icons.undo),
                   ),
                 ],
               ),
               if (_gameMode == GameMode.onlineFriend && _roomCode != null) ...[
                 const SizedBox(height: 6),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    'الغرفة: $_roomCode | أنت: اللاعب $_onlinePlayerId | ${_friendJoined ? "الصديق متصل" : "بانتظار الصديق"}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                  ),
+                Text(
+                  'غرفة: $_roomCode • أنت: اللاعب $_onlinePlayerId • ${_friendJoined ? "الصديق متصل" : "بانتظار الصديق"}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 ),
               ],
-              const SizedBox(height: 6),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _state.statusText,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
+              const SizedBox(height: 8),
+              Text(
+                _state.statusText,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
+              // اللوحة بدون إطار صندوقي محيط
               Expanded(
                 child: AspectRatio(
                   aspectRatio: 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: boardBg,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: lineColor.withValues(alpha: 0.5), width: 2),
-                    ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        return Stack(
-                          children: [
-                            CustomPaint(
-                              size: Size(w, h),
-                              painter: _ThabetBoardPainter(lineColor: lineColor, coords: nodeCoords),
-                            ),
-                            for (int i = 0; i < 24; i++)
-                              Positioned(
-                                left: nodeCoords[i].dx * w - 20,
-                                top: nodeCoords[i].dy * h - 20,
-                                child: GestureDetector(
-                                  onTap: () => _onNodeTap(i),
-                                  child: _buildNodeWidget(i),
-                                ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final w = constraints.maxWidth;
+                      final h = constraints.maxHeight;
+                      return Stack(
+                        children: [
+                          CustomPaint(
+                            size: Size(w, h),
+                            painter: _ThabetBoardPainter(lineColor: lineColor, coords: nodeCoords),
+                          ),
+                          for (int i = 0; i < 24; i++)
+                            Positioned(
+                              left: nodeCoords[i].dx * w - 23,
+                              top: nodeCoords[i].dy * h - 23,
+                              child: GestureDetector(
+                                onTap: () => _onNodeTap(i),
+                                child: _buildFloatingOrbWidget(i, lineColor),
                               ),
-                          ],
-                        );
-                      },
-                    ),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
+              // صف عداد القطع بدون إطار
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Text('أنت (أبيض): ${_state.p1PiecesOnBoard + _state.p1RemainingToPlace}'),
-                  Text('$effectiveAiName (أحمر): ${_state.p2PiecesOnBoard + _state.p2RemainingToPlace}'),
+                  Text(
+                    'أنت (أبيض): ${_state.p1PiecesOnBoard + _state.p1RemainingToPlace}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    '$effectiveAiName (أحمر): ${_state.p2PiecesOnBoard + _state.p2RemainingToPlace}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1401,35 +1401,58 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     );
   }
 
-  Widget _buildNodeWidget(int idx) {
+  // كرات عائمة بدون إطار صندوقي مزعج
+  Widget _buildFloatingOrbWidget(int idx, Color lineColor) {
     final occupant = _state.board[idx];
     final isSelected = _state.selectedIndex == idx;
     final isAiLast = _state.aiHighlightNodes.contains(idx);
+    final isCompletedLine = _state.activeLineNodes.contains(idx);
 
-    Color fill;
-    if (occupant == 1) {
-      fill = const Color(0xFFF8FAFC);
-    } else if (occupant == 2) {
-      fill = const Color(0xFFEF4444);
-    } else {
-      fill = Colors.amber.withValues(alpha: 0.22);
+    if (occupant == null) {
+      return SizedBox(
+        width: 46,
+        height: 46,
+        child: Center(
+          child: Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: lineColor.withValues(alpha: 0.42),
+            ),
+          ),
+        ),
+      );
     }
 
+    final List<Color> gradientColors = occupant == 1
+        ? const [Color(0xFFFFFFFF), Color(0xFFCBD5E1)]
+        : const [Color(0xFFFF7A7A), Color(0xFFDC2626)];
+
+    final glowColor = isSelected
+        ? Colors.cyanAccent
+        : (isCompletedLine
+            ? Colors.limeAccent
+            : (isAiLast ? Colors.orangeAccent : Colors.black.withValues(alpha: 0.45)));
+
     return Container(
-      width: 40,
-      height: 40,
+      width: 46,
+      height: 46,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: fill,
-        border: Border.all(
-          color: isSelected
-              ? Colors.cyanAccent
-              : (isAiLast ? Colors.orangeAccent : Colors.black54),
-          width: isSelected || isAiLast ? 3.5 : 1.5,
+        gradient: RadialGradient(
+          center: const Alignment(-0.32, -0.35),
+          radius: 0.75,
+          colors: gradientColors,
         ),
-        boxShadow: isAiLast
-            ? [const BoxShadow(color: Colors.orangeAccent, blurRadius: 8, spreadRadius: 1)]
-            : null,
+        boxShadow: [
+          BoxShadow(
+            color: glowColor,
+            blurRadius: (isSelected || isCompletedLine || isAiLast) ? 14 : 8,
+            spreadRadius: (isSelected || isCompletedLine || isAiLast) ? 2 : 0.5,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
     );
   }
@@ -1451,7 +1474,7 @@ class _ThabetBoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = lineColor
-      ..strokeWidth = 2.6
+      ..strokeWidth = 2.8
       ..style = PaintingStyle.stroke;
 
     void connect(int a, int b) {

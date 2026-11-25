@@ -1,10 +1,18 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // Keeps offline play working safely if Firebase config is not attached yet
+  }
   runApp(const ThabetApp());
 }
 
@@ -26,7 +34,7 @@ enum AppThemePreset { wood, emerald, obsidian }
 
 enum AiDifficulty { medium, hard, extreme }
 
-enum GameMode { vsAi, localTwoPlayers }
+enum GameMode { vsAi, localTwoPlayers, onlineFriend }
 
 enum GamePhase { placing, moving, flying, gameOver }
 
@@ -34,7 +42,7 @@ enum TurnStage { selectOrPlace, removePiece }
 
 class GameSnapshot {
   final List<int?> board;
-  int currentPlayer; // 1 = Player (بحمد), 2 = AI (الكمبيوتر)
+  int currentPlayer; // 1 = Player 1 (بحمد), 2 = Player 2 / AI
   GamePhase phase;
   TurnStage stage;
   int p1RemainingToPlace;
@@ -75,6 +83,53 @@ class GameSnapshot {
         winner: winner,
         aiHighlightNodes: Set<int>.from(aiHighlightNodes),
       );
+
+  Map<String, dynamic> toMap() => {
+        'board': board.map((e) => e ?? 0).toList(),
+        'currentPlayer': currentPlayer,
+        'phase': phase.name,
+        'stage': stage.name,
+        'p1RemainingToPlace': p1RemainingToPlace,
+        'p2RemainingToPlace': p2RemainingToPlace,
+        'p1PiecesOnBoard': p1PiecesOnBoard,
+        'p2PiecesOnBoard': p2PiecesOnBoard,
+        'selectedIndex': selectedIndex ?? -1,
+        'statusText': statusText,
+        'winner': winner ?? 0,
+        'aiHighlightNodes': aiHighlightNodes.toList(),
+      };
+
+  static GameSnapshot fromMap(Map<dynamic, dynamic> raw) {
+    final rawBoard = (raw['board'] as List<dynamic>? ?? List.filled(24, 0))
+        .map((e) => (e as num).toInt() == 0 ? null : (e as num).toInt())
+        .toList();
+    while (rawBoard.length < 24) {
+      rawBoard.add(null);
+    }
+
+    final phaseName = raw['phase']?.toString() ?? 'placing';
+    final stageName = raw['stage']?.toString() ?? 'selectOrPlace';
+    final selRaw = (raw['selectedIndex'] as num?)?.toInt() ?? -1;
+    final winRaw = (raw['winner'] as num?)?.toInt() ?? 0;
+    final highlights = ((raw['aiHighlightNodes'] as List<dynamic>?) ?? const [])
+        .map((e) => (e as num).toInt())
+        .toSet();
+
+    return GameSnapshot(
+      board: rawBoard.take(24).toList(),
+      currentPlayer: ((raw['currentPlayer'] as num?)?.toInt() ?? 1).clamp(1, 2),
+      phase: GamePhase.values.firstWhere((p) => p.name == phaseName, orElse: () => GamePhase.placing),
+      stage: TurnStage.values.firstWhere((s) => s.name == stageName, orElse: () => TurnStage.selectOrPlace),
+      p1RemainingToPlace: (raw['p1RemainingToPlace'] as num?)?.toInt() ?? 9,
+      p2RemainingToPlace: (raw['p2RemainingToPlace'] as num?)?.toInt() ?? 9,
+      p1PiecesOnBoard: (raw['p1PiecesOnBoard'] as num?)?.toInt() ?? 0,
+      p2PiecesOnBoard: (raw['p2PiecesOnBoard'] as num?)?.toInt() ?? 0,
+      selectedIndex: selRaw >= 0 && selRaw < 24 ? selRaw : null,
+      statusText: raw['statusText']?.toString() ?? 'دورك الآن',
+      winner: winRaw == 1 || winRaw == 2 ? winRaw : null,
+      aiHighlightNodes: highlights,
+    );
+  }
 }
 
 class ThabetApp extends StatefulWidget {
@@ -293,13 +348,237 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   bool _resultRecorded = false;
   final Random _rng = Random();
 
+  // Online room state
+  String? _roomCode;
+  int _onlinePlayerId = 1;
+  bool _friendJoined = false;
+  StreamSubscription<DatabaseEvent>? _roomSub;
+
   @override
   void initState() {
     super.initState();
     _startNewGame(triggerAiIfNeeded: false);
   }
 
+  @override
+  void dispose() {
+    _roomSub?.cancel();
+    super.dispose();
+  }
+
+  String _generateRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return List.generate(5, (_) => chars[_rng.nextInt(chars.length)]).join();
+  }
+
+  DatabaseReference? _roomRef(String code) {
+    try {
+      if (Firebase.apps.isEmpty) return null;
+      return FirebaseDatabase.instance.ref('thabet_rooms/$code');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _createOnlineRoom() async {
+    final code = _generateRoomCode();
+    final ref = _roomRef(code);
+    if (ref == null) {
+      _showOnlineMessage('الأونلاين يحتاج ربط google-services.json وتفعيل Realtime Database في Firebase.');
+      return;
+    }
+
+    _roomSub?.cancel();
+    final initial = GameSnapshot(
+      board: List<int?>.filled(24, null),
+      currentPlayer: 1,
+      phase: GamePhase.placing,
+      stage: TurnStage.selectOrPlace,
+      p1RemainingToPlace: 9,
+      p2RemainingToPlace: 9,
+      p1PiecesOnBoard: 0,
+      p2PiecesOnBoard: 0,
+      selectedIndex: null,
+      statusText: 'الغرفة ($code) جاهزة — أرسل الكود لصديقك للانضمام',
+      winner: null,
+      aiHighlightNodes: {},
+    );
+
+    try {
+      await ref.set({
+        'hostJoined': true,
+        'guestJoined': false,
+        'updatedAt': ServerValue.timestamp,
+        'game': initial.toMap(),
+      });
+
+      setState(() {
+        _gameMode = GameMode.onlineFriend;
+        _roomCode = code;
+        _onlinePlayerId = 1;
+        _friendJoined = false;
+        _history.clear();
+        _resultRecorded = false;
+        _state = initial;
+      });
+
+      _listenToRoom(code);
+    } catch (e) {
+      _showOnlineMessage('تعذر إنشاء الغرفة: $e');
+    }
+  }
+
+  Future<void> _joinOnlineRoom(String rawCode) async {
+    final code = rawCode.trim().toUpperCase();
+    if (code.isEmpty) return;
+
+    final ref = _roomRef(code);
+    if (ref == null) {
+      _showOnlineMessage('الأونلاين يحتاج ربط google-services.json وتفعيل Realtime Database في Firebase.');
+      return;
+    }
+
+    try {
+      final snap = await ref.get();
+      if (!snap.exists || snap.value is! Map) {
+        _showOnlineMessage('لا توجد غرفة بالكود ($code).');
+        return;
+      }
+
+      _roomSub?.cancel();
+      await ref.update({
+        'guestJoined': true,
+        'updatedAt': ServerValue.timestamp,
+      });
+
+      setState(() {
+        _gameMode = GameMode.onlineFriend;
+        _roomCode = code;
+        _onlinePlayerId = 2;
+        _friendJoined = true;
+        _history.clear();
+        _resultRecorded = false;
+      });
+
+      _listenToRoom(code);
+    } catch (e) {
+      _showOnlineMessage('تعذر الانضمام للغرفة: $e');
+    }
+  }
+
+  void _listenToRoom(String code) {
+    final ref = _roomRef(code);
+    if (ref == null) return;
+
+    _roomSub = ref.onValue.listen((event) {
+      final data = event.snapshot.value;
+      if (data is! Map) return;
+
+      final guestJoined = data['guestJoined'] == true;
+      final gameMap = data['game'];
+      if (gameMap is Map) {
+        final remoteSnap = GameSnapshot.fromMap(gameMap);
+        setState(() {
+          _friendJoined = guestJoined;
+          _state = remoteSnap;
+        });
+        _checkGameOverNotification(_state);
+      }
+    });
+  }
+
+  Future<void> _syncRoomGameState(GameSnapshot snap) async {
+    if (_gameMode != GameMode.onlineFriend || _roomCode == null) return;
+    final ref = _roomRef(_roomCode!);
+    if (ref == null) return;
+    try {
+      await ref.update({
+        'game': snap.toMap(),
+        'updatedAt': ServerValue.timestamp,
+      });
+    } catch (_) {}
+  }
+
+  void _showOnlineMessage(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  void _openOnlineLobbyDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('أونلاين مع صديق 🌐'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'أنشئ غرفة جديدة وشارك كودها مع صديقك، أو أدخل كود غرفته للانضمام.',
+              style: TextStyle(fontSize: 13.5),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _createOnlineRoom();
+              },
+              icon: const Icon(Icons.add_circle_outline),
+              label: const Text('إنشاء غرفة جديدة'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'كود الغرفة',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () {
+                final code = controller.text;
+                Navigator.pop(context);
+                _joinOnlineRoom(code);
+              },
+              icon: const Icon(Icons.login),
+              label: const Text('انضمام إلى الغرفة'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
+        ],
+      ),
+    );
+  }
+
   void _startNewGame({bool triggerAiIfNeeded = true}) {
+    if (_gameMode == GameMode.onlineFriend) {
+      final fresh = GameSnapshot(
+        board: List<int?>.filled(24, null),
+        currentPlayer: 1,
+        phase: GamePhase.placing,
+        stage: TurnStage.selectOrPlace,
+        p1RemainingToPlace: 9,
+        p2RemainingToPlace: 9,
+        p1PiecesOnBoard: 0,
+        p2PiecesOnBoard: 0,
+        selectedIndex: null,
+        statusText: 'بدأت جولة أونلاين جديدة — دور اللاعب 1',
+        winner: null,
+        aiHighlightNodes: {},
+      );
+      setState(() {
+        _resultRecorded = false;
+        _state = fresh;
+      });
+      _syncRoomGameState(fresh);
+      return;
+    }
+
     setState(() {
       _history.clear();
       _aiThinking = false;
@@ -412,7 +691,11 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   void _checkGameOverNotification(GameSnapshot snap) {
     if (snap.phase == GamePhase.gameOver && !_resultRecorded) {
       _resultRecorded = true;
-      widget.onMatchFinished(snap.winner);
+      if (_gameMode == GameMode.onlineFriend) {
+        widget.onMatchFinished(snap.winner == _onlinePlayerId ? 1 : 2);
+      } else {
+        widget.onMatchFinished(snap.winner);
+      }
     }
   }
 
@@ -420,12 +703,19 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     if (_gameMode == GameMode.vsAi) {
       return turnPlayer == 2 ? 'يفكر ${widget.aiName}🤖 (بحمد)...' : 'دورك الآن';
     }
+    if (_gameMode == GameMode.onlineFriend) {
+      return turnPlayer == _onlinePlayerId ? 'دورك الآن (أونلاين)' : 'بانتظار نقلة صديقك...';
+    }
     return turnPlayer == 1 ? 'دور اللاعب 1 (أبيض)' : 'دور اللاعب 2 (أحمر)';
   }
 
   void _onNodeTap(int index) {
     if (_aiThinking || _state.phase == GamePhase.gameOver) return;
     if (_gameMode == GameMode.vsAi && _state.currentPlayer == 2) return;
+    if (_gameMode == GameMode.onlineFriend && _state.currentPlayer != _onlinePlayerId) {
+      setState(() => _state.statusText = 'انتظر دور صديقك...');
+      return;
+    }
 
     final next = _state.clone();
     final player = next.currentPlayer;
@@ -440,7 +730,9 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         setState(() => next.statusText = 'لا يمكن إزالة قطعة محمية بـ «ثبت» مكتمل');
         return;
       }
-      _history.add(_state.clone());
+      if (_gameMode != GameMode.onlineFriend) {
+        _history.add(_state.clone());
+      }
       next.board[index] = null;
       next.stage = TurnStage.selectOrPlace;
       next.selectedIndex = null;
@@ -452,6 +744,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       SoundEffects.play('remove.wav', enabled: widget.soundEnabled);
       setState(() => _state = next);
       _checkGameOverNotification(_state);
+      _syncRoomGameState(next);
       if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
         _runAiTurn();
       }
@@ -460,7 +753,9 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
 
     if (next.phase == GamePhase.placing) {
       if (next.board[index] != null) return;
-      _history.add(_state.clone());
+      if (_gameMode != GameMode.onlineFriend) {
+        _history.add(_state.clone());
+      }
       next.board[index] = player;
       if (player == 1) {
         next.p1RemainingToPlace -= 1;
@@ -474,6 +769,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
         SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
+        _syncRoomGameState(next);
       } else {
         next.currentPlayer = opponent;
         _syncCountsAndPhase(next);
@@ -483,6 +779,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         SoundEffects.play('place.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
         _checkGameOverNotification(_state);
+        _syncRoomGameState(next);
         if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
           _runAiTurn();
         }
@@ -507,7 +804,9 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         return;
       }
 
-      _history.add(_state.clone());
+      if (_gameMode != GameMode.onlineFriend) {
+        _history.add(_state.clone());
+      }
       next.board[from] = null;
       next.board[index] = player;
       next.selectedIndex = null;
@@ -518,6 +817,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
         SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
+        _syncRoomGameState(next);
       } else {
         next.currentPlayer = opponent;
         _syncCountsAndPhase(next);
@@ -527,6 +827,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         SoundEffects.play('place.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
         _checkGameOverNotification(_state);
+        _syncRoomGameState(next);
         if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
           _runAiTurn();
         }
@@ -535,7 +836,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   }
 
   void _undoLastTurn() {
-    if (_aiThinking || _history.isEmpty) return;
+    if (_aiThinking || _history.isEmpty || _gameMode == GameMode.onlineFriend) return;
     while (_history.isNotEmpty) {
       final prev = _history.removeLast();
       if (_gameMode != GameMode.vsAi || prev.currentPlayer == 1) {
@@ -837,7 +1138,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
               const SizedBox(height: 10),
               _ruleSection('3. التحريك والطيران', 'حرّك قطعة إلى نقطة مجاورة فارغة؛ وعندما يبقى لك 3 قطع فقط يمكنك الطيران لأي نقطة فارغة.'),
               const SizedBox(height: 10),
-              _ruleSection('4. الفوز والتحدي', 'تفوز إذا قلت قطع الخصم عن 3 أو حُصرت حركاته، ويمكنك اللعب ضد ${widget.aiName}🤖 (بحمد) أو لاعبين على نفس الجهاز.'),
+              _ruleSection('4. الفوز والتحدي', 'تفوز إذا قلت قطع الخصم عن 3 أو حُصرت حركاته، ويمكنك اللعب ضد ${widget.aiName}🤖 (بحمد) أو لاعبين أو أونلاين مع صديقك.'),
             ],
           ),
         ),
@@ -978,27 +1279,54 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           child: Column(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   ChoiceChip(
-                    label: Text(_gameMode == GameMode.vsAi ? 'ضد $effectiveAiName' : 'لاعبان'),
+                    label: Text('ضد $effectiveAiName'),
                     selected: _gameMode == GameMode.vsAi,
                     onSelected: (_) {
+                      _roomSub?.cancel();
                       setState(() {
-                        _gameMode = _gameMode == GameMode.vsAi ? GameMode.localTwoPlayers : GameMode.vsAi;
+                        _gameMode = GameMode.vsAi;
+                        _roomCode = null;
                       });
                       _startNewGame();
                     },
                   ),
-                  Text('المستوى: ${_difficultyLabel(widget.difficulty)}', style: const TextStyle(fontSize: 13)),
+                  ChoiceChip(
+                    label: const Text('أونلاين 🌐'),
+                    selected: _gameMode == GameMode.onlineFriend,
+                    onSelected: (_) => _openOnlineLobbyDialog(),
+                  ),
                   TextButton.icon(
-                    onPressed: _history.isNotEmpty && !_aiThinking ? _undoLastTurn : null,
+                    onPressed: _history.isNotEmpty && !_aiThinking && _gameMode != GameMode.onlineFriend
+                        ? _undoLastTurn
+                        : null,
                     icon: const Icon(Icons.undo, size: 18),
                     label: const Text('تراجع'),
                   ),
                 ],
               ),
+              if (_gameMode == GameMode.onlineFriend && _roomCode != null) ...[
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'الغرفة: $_roomCode | أنت: اللاعب $_onlinePlayerId | ${_friendJoined ? "الصديق متصل" : "بانتظار الصديق"}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
               const SizedBox(height: 6),
               Container(
                 width: double.infinity,

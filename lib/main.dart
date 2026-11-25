@@ -1,59 +1,33 @@
-import 'dart:async';
 import 'dart:math';
-import 'package:audioplayers/audioplayers.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp();
-  } catch (_) {
-    // Keeps offline mode working safely if Firebase config is not present
-  }
   runApp(const ThabetApp());
-}
-
-class SoundEffects {
-  static final AudioPlayer _player = AudioPlayer();
-
-  static Future<void> play(String fileName, {required bool enabled}) async {
-    if (!enabled) return;
-    try {
-      await _player.stop();
-      await _player.play(AssetSource('sounds/$fileName'));
-    } catch (_) {
-      // Ignore audio errors if sound file is missing or device audio is busy
-    }
-  }
 }
 
 enum AppThemePreset { wood, emerald, obsidian }
 
 enum AiDifficulty { medium, hard, extreme }
 
-enum GameMode { vsAi, localTwoPlayers, onlineFriend }
-
-enum GamePhase { placing, moving, gameOver }
+enum GamePhase { placing, moving, flying, gameOver }
 
 enum TurnStage { selectOrPlace, removePiece }
 
 class GameSnapshot {
   final List<int?> board;
-  int currentPlayer; // 1 = Player 1 (بحمد), 2 = Player 2 / AI
-  GamePhase phase;
-  TurnStage stage;
-  int p1RemainingToPlace;
-  int p2RemainingToPlace;
-  int p1PiecesOnBoard;
-  int p2PiecesOnBoard;
-  int? selectedIndex;
-  String statusText;
-  int? winner;
-  Set<int> aiHighlightNodes;
-  Set<int> activeLineNodes;
+  final int currentPlayer; // 1 = Player (بحمد), 2 = AI (الكمبيوتر)
+  final GamePhase phase;
+  final TurnStage stage;
+  final int p1RemainingToPlace;
+  final int p2RemainingToPlace;
+  final int p1PiecesOnBoard;
+  final int p2PiecesOnBoard;
+  final int? selectedIndex;
+  final String statusText;
+  final int? winner;
+  final Set<int> aiHighlightNodes;
 
   GameSnapshot({
     required this.board,
@@ -68,8 +42,7 @@ class GameSnapshot {
     required this.statusText,
     required this.winner,
     required this.aiHighlightNodes,
-    Set<int>? activeLineNodes,
-  }) : activeLineNodes = activeLineNodes ?? <int>{};
+  });
 
   GameSnapshot clone() => GameSnapshot(
         board: List<int?>.from(board),
@@ -84,64 +57,7 @@ class GameSnapshot {
         statusText: statusText,
         winner: winner,
         aiHighlightNodes: Set<int>.from(aiHighlightNodes),
-        activeLineNodes: Set<int>.from(activeLineNodes),
       );
-
-  Map<String, dynamic> toMap() => {
-        'board': board.map((e) => e ?? 0).toList(),
-        'currentPlayer': currentPlayer,
-        'phase': phase.name,
-        'stage': stage.name,
-        'p1RemainingToPlace': p1RemainingToPlace,
-        'p2RemainingToPlace': p2RemainingToPlace,
-        'p1PiecesOnBoard': p1PiecesOnBoard,
-        'p2PiecesOnBoard': p2PiecesOnBoard,
-        'selectedIndex': selectedIndex ?? -1,
-        'statusText': statusText,
-        'winner': winner ?? 0,
-        'aiHighlightNodes': aiHighlightNodes.toList(),
-        'activeLineNodes': activeLineNodes.toList(),
-      };
-
-  static GameSnapshot fromMap(Map<dynamic, dynamic> raw) {
-    final rawBoard = (raw['board'] as List<dynamic>? ?? List.filled(24, 0))
-        .map((e) => (e as num).toInt() == 0 ? null : (e as num).toInt())
-        .toList();
-    while (rawBoard.length < 24) {
-      rawBoard.add(null);
-    }
-
-    final phaseName = raw['phase']?.toString() ?? 'placing';
-    final stageName = raw['stage']?.toString() ?? 'selectOrPlace';
-    final selRaw = (raw['selectedIndex'] as num?)?.toInt() ?? -1;
-    final winRaw = (raw['winner'] as num?)?.toInt() ?? 0;
-    final highlights = ((raw['aiHighlightNodes'] as List<dynamic>?) ?? const [])
-        .map((e) => (e as num).toInt())
-        .toSet();
-    final activeLines = ((raw['activeLineNodes'] as List<dynamic>?) ?? const [])
-        .map((e) => (e as num).toInt())
-        .toSet();
-
-    final parsedPhase = phaseName == 'moving' || phaseName == 'flying'
-        ? GamePhase.moving
-        : (phaseName == 'gameOver' ? GamePhase.gameOver : GamePhase.placing);
-
-    return GameSnapshot(
-      board: rawBoard.take(24).toList(),
-      currentPlayer: ((raw['currentPlayer'] as num?)?.toInt() ?? 1).clamp(1, 2),
-      phase: parsedPhase,
-      stage: TurnStage.values.firstWhere((s) => s.name == stageName, orElse: () => TurnStage.selectOrPlace),
-      p1RemainingToPlace: (raw['p1RemainingToPlace'] as num?)?.toInt() ?? 9,
-      p2RemainingToPlace: (raw['p2RemainingToPlace'] as num?)?.toInt() ?? 9,
-      p1PiecesOnBoard: (raw['p1PiecesOnBoard'] as num?)?.toInt() ?? 0,
-      p2PiecesOnBoard: (raw['p2PiecesOnBoard'] as num?)?.toInt() ?? 0,
-      selectedIndex: selRaw >= 0 && selRaw < 24 ? selRaw : null,
-      statusText: raw['statusText']?.toString() ?? 'دورك الآن',
-      winner: winRaw == 1 || winRaw == 2 ? winRaw : null,
-      aiHighlightNodes: highlights,
-      activeLineNodes: activeLines,
-    );
-  }
 }
 
 class ThabetApp extends StatefulWidget {
@@ -322,7 +238,8 @@ class ThabetHomeScreen extends StatefulWidget {
 }
 
 class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
-  static const List<List<int>> thabetLines = [
+  // 24 positions on a standard 3 concentric squares board (0..23)
+  static const List<List<int>> mills = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8],
     [9, 10, 11], [12, 13, 14], [15, 16, 17],
     [18, 19, 20], [21, 22, 23],
@@ -342,12 +259,18 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     21: [9, 22], 22: [16, 19, 21, 23], 23: [14, 22],
   };
 
+  // Normalized coordinates (0.0 to 1.0) for each of the 24 nodes
   static const List<Offset> nodeCoords = [
+    // Outer square
     Offset(0.08, 0.08), Offset(0.50, 0.08), Offset(0.92, 0.08),
+    // Middle square
     Offset(0.22, 0.22), Offset(0.50, 0.22), Offset(0.78, 0.22),
+    // Inner square
     Offset(0.36, 0.36), Offset(0.50, 0.36), Offset(0.64, 0.36),
+    // Left & Right middle connectors
     Offset(0.08, 0.50), Offset(0.22, 0.50), Offset(0.36, 0.50),
     Offset(0.64, 0.50), Offset(0.78, 0.50), Offset(0.92, 0.50),
+    // Bottom inner, middle, outer
     Offset(0.36, 0.64), Offset(0.50, 0.64), Offset(0.64, 0.64),
     Offset(0.22, 0.78), Offset(0.50, 0.78), Offset(0.78, 0.78),
     Offset(0.08, 0.92), Offset(0.50, 0.92), Offset(0.92, 0.92),
@@ -355,15 +278,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
 
   late GameSnapshot _state;
   final List<GameSnapshot> _history = [];
-  GameMode _gameMode = GameMode.vsAi;
+  bool _vsAi = true;
   bool _aiThinking = false;
   bool _resultRecorded = false;
   final Random _rng = Random();
-
-  String? _roomCode;
-  int _onlinePlayerId = 1;
-  bool _friendJoined = false;
-  StreamSubscription<DatabaseEvent>? _roomSub;
 
   @override
   void initState() {
@@ -371,227 +289,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     _startNewGame(triggerAiIfNeeded: false);
   }
 
-  @override
-  void dispose() {
-    _roomSub?.cancel();
-    super.dispose();
-  }
-
-  String _generateRoomCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    return List.generate(5, (_) => chars[_rng.nextInt(chars.length)]).join();
-  }
-
-  DatabaseReference? _roomRef(String code) {
-    try {
-      if (Firebase.apps.isEmpty) return null;
-      return FirebaseDatabase.instance.ref('thabet_rooms/$code');
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> _createOnlineRoom() async {
-    final code = _generateRoomCode();
-    final ref = _roomRef(code);
-    if (ref == null) {
-      _showOnlineMessage('الأونلاين يتطلب ربط ملف google-services.json وتفعيل Realtime Database في Firebase.');
-      return;
-    }
-
-    _roomSub?.cancel();
-    final initial = GameSnapshot(
-      board: List<int?>.filled(24, null),
-      currentPlayer: 1,
-      phase: GamePhase.placing,
-      stage: TurnStage.selectOrPlace,
-      p1RemainingToPlace: 9,
-      p2RemainingToPlace: 9,
-      p1PiecesOnBoard: 0,
-      p2PiecesOnBoard: 0,
-      selectedIndex: null,
-      statusText: 'غرفة ($code) جاهزة — شارك الكود مع صديقك للبدء',
-      winner: null,
-      aiHighlightNodes: {},
-      activeLineNodes: {},
-    );
-
-    try {
-      await ref.set({
-        'hostJoined': true,
-        'guestJoined': false,
-        'updatedAt': ServerValue.timestamp,
-        'game': initial.toMap(),
-      });
-
-      setState(() {
-        _gameMode = GameMode.onlineFriend;
-        _roomCode = code;
-        _onlinePlayerId = 1;
-        _friendJoined = false;
-        _history.clear();
-        _resultRecorded = false;
-        _state = initial;
-      });
-
-      _listenToRoom(code);
-    } catch (e) {
-      _showOnlineMessage('تعذر إنشاء الغرفة: $e');
-    }
-  }
-
-  Future<void> _joinOnlineRoom(String rawCode) async {
-    final code = rawCode.trim().toUpperCase();
-    if (code.isEmpty) return;
-
-    final ref = _roomRef(code);
-    if (ref == null) {
-      _showOnlineMessage('الأونلاين يتطلب ربط ملف google-services.json وتفعيل Realtime Database في Firebase.');
-      return;
-    }
-
-    try {
-      final snap = await ref.get();
-      if (!snap.exists || snap.value is! Map) {
-        _showOnlineMessage('لا توجد غرفة بالكود ($code).');
-        return;
-      }
-
-      _roomSub?.cancel();
-      await ref.update({
-        'guestJoined': true,
-        'updatedAt': ServerValue.timestamp,
-      });
-
-      setState(() {
-        _gameMode = GameMode.onlineFriend;
-        _roomCode = code;
-        _onlinePlayerId = 2;
-        _friendJoined = true;
-        _history.clear();
-        _resultRecorded = false;
-      });
-
-      _listenToRoom(code);
-    } catch (e) {
-      _showOnlineMessage('تعذر الانضمام للغرفة: $e');
-    }
-  }
-
-  void _listenToRoom(String code) {
-    final ref = _roomRef(code);
-    if (ref == null) return;
-
-    _roomSub = ref.onValue.listen((event) {
-      final data = event.snapshot.value;
-      if (data is! Map) return;
-
-      final guestJoined = data['guestJoined'] == true;
-      final gameMap = data['game'];
-      if (gameMap is Map) {
-        final remoteSnap = GameSnapshot.fromMap(gameMap);
-        setState(() {
-          _friendJoined = guestJoined;
-          _state = remoteSnap;
-        });
-        _checkGameOverNotification(_state);
-      }
-    });
-  }
-
-  Future<void> _syncRoomGameState(GameSnapshot snap) async {
-    if (_gameMode != GameMode.onlineFriend || _roomCode == null) return;
-    final ref = _roomRef(_roomCode!);
-    if (ref == null) return;
-    try {
-      await ref.update({
-        'game': snap.toMap(),
-        'updatedAt': ServerValue.timestamp,
-      });
-    } catch (_) {}
-  }
-
-  void _showOnlineMessage(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
-  void _openOnlineLobbyDialog() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('أونلاين مع صديق 🌐'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'أنشئ غرفة وأرسل الكود لصديقك، أو أدخل كود الغرفة للانضمام المباشر.',
-              style: TextStyle(fontSize: 13.5),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-                _createOnlineRoom();
-              },
-              icon: const Icon(Icons.add_circle_outline),
-              label: const Text('إنشاء غرفة جديدة'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'أدخل كود الغرفة',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () {
-                final code = controller.text;
-                Navigator.pop(context);
-                _joinOnlineRoom(code);
-              },
-              icon: const Icon(Icons.login),
-              label: const Text('انضمام إلى الغرفة'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
-        ],
-      ),
-    );
-  }
-
   void _startNewGame({bool triggerAiIfNeeded = true}) {
-    if (_gameMode == GameMode.onlineFriend) {
-      final fresh = GameSnapshot(
-        board: List<int?>.filled(24, null),
-        currentPlayer: 1,
-        phase: GamePhase.placing,
-        stage: TurnStage.selectOrPlace,
-        p1RemainingToPlace: 9,
-        p2RemainingToPlace: 9,
-        p1PiecesOnBoard: 0,
-        p2PiecesOnBoard: 0,
-        selectedIndex: null,
-        statusText: 'بدأت جولة أونلاين جديدة — دور اللاعب 1',
-        winner: null,
-        aiHighlightNodes: {},
-        activeLineNodes: {},
-      );
-      setState(() {
-        _resultRecorded = false;
-        _state = fresh;
-      });
-      _syncRoomGameState(fresh);
-      return;
-    }
-
     setState(() {
       _history.clear();
       _aiThinking = false;
@@ -606,60 +304,52 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         p1PiecesOnBoard: 0,
         p2PiecesOnBoard: 0,
         selectedIndex: null,
-        statusText: _gameMode == GameMode.vsAi
-            ? 'مرحلة الوضع: ضع قطعة (9 قطع لكل لاعب)'
-            : 'دور اللاعب 1 (أبيض): ضع قطعة',
+        statusText: 'دورك: ضع قطعة على اللوحة',
         winner: null,
         aiHighlightNodes: {},
-        activeLineNodes: {},
       );
     });
-    if (triggerAiIfNeeded && _gameMode == GameMode.vsAi && _state.currentPlayer == 2) {
+    if (triggerAiIfNeeded && _vsAi && _state.currentPlayer == 2) {
       _runAiTurn();
     }
   }
 
-  Set<int> _completedLineNodesAt(List<int?> board, int pos, int player) {
-    final nodes = <int>{};
-    for (final line in thabetLines) {
-      if (line.contains(pos) && line.every((idx) => board[idx] == player)) {
-        nodes.addAll(line);
-      }
-    }
-    return nodes;
-  }
-
-  bool _formsThabet(List<int?> board, int pos, int player) {
-    for (final line in thabetLines) {
-      if (line.contains(pos) && line.every((idx) => board[idx] == player)) {
+  bool _formsMill(List<int?> board, int pos, int player) {
+    for (final m in mills) {
+      if (m.contains(pos) && m.every((idx) => board[idx] == player)) {
         return true;
       }
     }
     return false;
   }
 
-  bool _isProtectedByThabet(List<int?> board, int pos, int player) {
-    return _formsThabet(board, pos, player);
+  bool _isPartOfAnyMill(List<int?> board, int pos, int player) {
+    return _formsMill(board, pos, player);
   }
 
-  bool _allOpponentProtected(List<int?> board, int opponent) {
+  bool _allOpponentInMills(List<int?> board, int opponent) {
     for (int i = 0; i < 24; i++) {
-      if (board[i] == opponent && !_isProtectedByThabet(board, i, opponent)) {
+      if (board[i] == opponent && !_isPartOfAnyMill(board, i, opponent)) {
         return false;
       }
     }
     return true;
   }
 
-  // قواعد ثبت: لا يوجد طيران؛ التحريك يكون إلى نقطة مجاورة فارغة فقط
   bool _hasAnyLegalMove(List<int?> board, int player, GamePhase phase, int remainingToPlace) {
     if (remainingToPlace > 0) {
       return board.any((cell) => cell == null);
     }
+    int count = board.where((c) => c == player).length;
+    bool canFly = count <= 3;
     for (int i = 0; i < 24; i++) {
       if (board[i] == player) {
-        for (final n in adjacent[i]!) {
-          if (board[n] == null) return true;
+        if (canFly) {
+          if (board.any((c) => c == null)) return true;
+        } else {
+          for (final n in adjacent[i]!) {
+            if (board[n] == null) return true;
+          }
         }
       }
     }
@@ -683,57 +373,38 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     if (snap.p1PiecesOnBoard < 3) {
       snap.winner = 2;
       snap.phase = GamePhase.gameOver;
-      snap.statusText = _gameMode == GameMode.vsAi ? 'فاز ${widget.aiName}🤖 (بحمد)!' : 'فاز اللاعب 2 (أحمر)!';
+      snap.statusText = 'فاز ${widget.aiName}🤖 (بحمد)!';
       return;
     }
     if (snap.p2PiecesOnBoard < 3) {
       snap.winner = 1;
       snap.phase = GamePhase.gameOver;
-      snap.statusText = _gameMode == GameMode.vsAi ? 'مبروك! فزت بالجولة 👑' : 'فاز اللاعب 1 (أبيض)!';
+      snap.statusText = 'مبروك! فزت بالجولة 👑';
       return;
     }
 
-    snap.phase = GamePhase.moving;
+    snap.phase = (snap.currentPlayer == 1 ? snap.p1PiecesOnBoard : snap.p2PiecesOnBoard) <= 3
+        ? GamePhase.flying
+        : GamePhase.moving;
 
     int rem = snap.currentPlayer == 1 ? snap.p1RemainingToPlace : snap.p2RemainingToPlace;
     if (!_hasAnyLegalMove(snap.board, snap.currentPlayer, snap.phase, rem)) {
       snap.winner = snap.currentPlayer == 1 ? 2 : 1;
       snap.phase = GamePhase.gameOver;
-      snap.statusText = snap.winner == 1
-          ? (_gameMode == GameMode.vsAi ? 'مبروك! فزت بالجولة 👑' : 'فاز اللاعب 1!')
-          : (_gameMode == GameMode.vsAi ? 'فاز ${widget.aiName}🤖 (بحمد)!' : 'فاز اللاعب 2!');
+      snap.statusText = snap.winner == 1 ? 'مبروك! فزت بالجولة 👑' : 'فاز ${widget.aiName}🤖 (بحمد)!';
     }
   }
 
   void _checkGameOverNotification(GameSnapshot snap) {
     if (snap.phase == GamePhase.gameOver && !_resultRecorded) {
       _resultRecorded = true;
-      if (_gameMode == GameMode.onlineFriend) {
-        widget.onMatchFinished(snap.winner == _onlinePlayerId ? 1 : 2);
-      } else {
-        widget.onMatchFinished(snap.winner);
-      }
+      widget.onMatchFinished(snap.winner);
     }
-  }
-
-  String _nextTurnPrompt(int turnPlayer, GamePhase phase) {
-    final phaseLabel = phase == GamePhase.placing ? 'ضع قطعة' : 'حرّك قطعة إلى نقطة مجاورة';
-    if (_gameMode == GameMode.vsAi) {
-      return turnPlayer == 2 ? 'يفكر ${widget.aiName}🤖 (بحمد)...' : 'دورك: $phaseLabel';
-    }
-    if (_gameMode == GameMode.onlineFriend) {
-      return turnPlayer == _onlinePlayerId ? 'دورك: $phaseLabel' : 'بانتظار نقلة صديقك...';
-    }
-    return turnPlayer == 1 ? 'اللاعب 1 (أبيض): $phaseLabel' : 'اللاعب 2 (أحمر): $phaseLabel';
   }
 
   void _onNodeTap(int index) {
     if (_aiThinking || _state.phase == GamePhase.gameOver) return;
-    if (_gameMode == GameMode.vsAi && _state.currentPlayer == 2) return;
-    if (_gameMode == GameMode.onlineFriend && _state.currentPlayer != _onlinePlayerId) {
-      setState(() => _state.statusText = 'انتظر دور صديقك...');
-      return;
-    }
+    if (_vsAi && _state.currentPlayer == 2) return;
 
     final next = _state.clone();
     final player = next.currentPlayer;
@@ -744,37 +415,33 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         setState(() => next.statusText = 'اختر قطعة للخصم لإزالتها');
         return;
       }
-      if (!_allOpponentProtected(next.board, opponent) && _isProtectedByThabet(next.board, index, opponent)) {
-        setState(() => next.statusText = 'لا يمكن إزالة قطعة محمية بـ «ثبت» مكتمل');
+      if (!_allOpponentInMills(next.board, opponent) && _isPartOfAnyMill(next.board, index, opponent)) {
+        setState(() => next.statusText = 'لا يمكن إزالة قطعة داخل طاحونة مكتملة');
         return;
       }
-      if (_gameMode != GameMode.onlineFriend) {
-        _history.add(_state.clone());
-      }
+      _history.add(_state.clone());
       next.board[index] = null;
       next.stage = TurnStage.selectOrPlace;
       next.selectedIndex = null;
-      next.activeLineNodes = {};
       next.currentPlayer = opponent;
       _syncCountsAndPhase(next);
       if (next.phase != GamePhase.gameOver) {
-        next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
+        next.statusText = next.currentPlayer == 2
+            ? 'يفكر ${widget.aiName}🤖 (بحمد)...'
+            : 'دورك الآن';
       }
-      SoundEffects.play('remove.wav', enabled: widget.soundEnabled);
       setState(() => _state = next);
       _checkGameOverNotification(_state);
-      _syncRoomGameState(next);
-      if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
+      if (_vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
         _runAiTurn();
       }
       return;
     }
 
+    // Placing phase
     if (next.phase == GamePhase.placing) {
       if (next.board[index] != null) return;
-      if (_gameMode != GameMode.onlineFriend) {
-        _history.add(_state.clone());
-      }
+      _history.add(_state.clone());
       next.board[index] = player;
       if (player == 1) {
         next.p1RemainingToPlace -= 1;
@@ -783,74 +450,66 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       }
       _syncCountsAndPhase(next);
 
-      if (_formsThabet(next.board, index, player)) {
+      if (_formsMill(next.board, index, player)) {
         next.stage = TurnStage.removePiece;
-        next.activeLineNodes = _completedLineNodesAt(next.board, index, player);
-        next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
-        SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
+        next.statusText = 'طاحونة! اختر قطعة للخصم لإزالتها';
         setState(() => _state = next);
-        _syncRoomGameState(next);
       } else {
-        next.activeLineNodes = {};
         next.currentPlayer = opponent;
         _syncCountsAndPhase(next);
         if (next.phase != GamePhase.gameOver) {
-          next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
+          next.statusText = next.currentPlayer == 2
+              ? 'يفكر ${widget.aiName}🤖 (بحمد)...'
+              : 'دورك: ضع أو حرّك قطعة';
         }
-        SoundEffects.play('place.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
         _checkGameOverNotification(_state);
-        _syncRoomGameState(next);
-        if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
+        if (_vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
           _runAiTurn();
         }
       }
       return;
     }
 
+    // Moving or Flying phase
     if (next.board[index] == player) {
       setState(() {
         _state.selectedIndex = index;
-        _state.statusText = 'تم تحديد القطعة — اختر نقطة مجاورة فارغة';
+        _state.statusText = 'تم تحديد القطعة، اختر نقطة فارغة';
       });
       return;
     }
 
     if (next.selectedIndex != null && next.board[index] == null) {
       final from = next.selectedIndex!;
-      bool validMove = adjacent[from]?.contains(index) ?? false;
+      bool canFly = (player == 1 ? next.p1PiecesOnBoard : next.p2PiecesOnBoard) <= 3;
+      bool validMove = canFly || (adjacent[from]?.contains(index) ?? false);
       if (!validMove) {
-        setState(() => _state.statusText = 'في ثبت: التحريك للنقطة المجاورة المتصلة فقط');
+        setState(() => _state.statusText = 'النقطة غير متجاورة مع القطعة المحددة');
         return;
       }
 
-      if (_gameMode != GameMode.onlineFriend) {
-        _history.add(_state.clone());
-      }
+      _history.add(_state.clone());
       next.board[from] = null;
       next.board[index] = player;
       next.selectedIndex = null;
       _syncCountsAndPhase(next);
 
-      if (_formsThabet(next.board, index, player)) {
+      if (_formsMill(next.board, index, player)) {
         next.stage = TurnStage.removePiece;
-        next.activeLineNodes = _completedLineNodesAt(next.board, index, player);
-        next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
-        SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
+        next.statusText = 'طاحونة! اختر قطعة للخصم لإزالتها';
         setState(() => _state = next);
-        _syncRoomGameState(next);
       } else {
-        next.activeLineNodes = {};
         next.currentPlayer = opponent;
         _syncCountsAndPhase(next);
         if (next.phase != GamePhase.gameOver) {
-          next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
+          next.statusText = next.currentPlayer == 2
+              ? 'يفكر ${widget.aiName}🤖 (بحمد)...'
+              : 'دورك: اختر قطعة لتحريكها';
         }
-        SoundEffects.play('place.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
         _checkGameOverNotification(_state);
-        _syncRoomGameState(next);
-        if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
+        if (_vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
           _runAiTurn();
         }
       }
@@ -858,10 +517,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   }
 
   void _undoLastTurn() {
-    if (_aiThinking || _history.isEmpty || _gameMode == GameMode.onlineFriend) return;
+    if (_aiThinking || _history.isEmpty) return;
     while (_history.isNotEmpty) {
       final prev = _history.removeLast();
-      if (_gameMode != GameMode.vsAi || prev.currentPlayer == 1) {
+      if (!_vsAi || prev.currentPlayer == 1) {
         setState(() {
           _state = prev;
           _resultRecorded = false;
@@ -871,7 +530,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     }
   }
 
-  // ==================== AI ENGINE ====================
+  // ==================== VERY HARD AI ENGINE ====================
   Future<void> _runAiTurn() async {
     setState(() {
       _aiThinking = true;
@@ -908,16 +567,12 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     next.aiHighlightNodes = highlights;
     _syncCountsAndPhase(next);
 
-    bool madeThabet = _formsThabet(next.board, bestMove.to, 2);
-    if (madeThabet) {
-      next.activeLineNodes = _completedLineNodesAt(next.board, bestMove.to, 2);
+    if (_formsMill(next.board, bestMove.to, 2)) {
       final victim = _chooseBestRemovalTarget(next.board, 1);
       if (victim != null) {
         next.board[victim] = null;
         next.aiHighlightNodes.add(victim);
       }
-    } else {
-      next.activeLineNodes = {};
     }
 
     next.currentPlayer = 1;
@@ -925,10 +580,9 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     next.selectedIndex = null;
     _syncCountsAndPhase(next);
     if (next.phase != GamePhase.gameOver) {
-      next.statusText = _nextTurnPrompt(1, next.phase);
+      next.statusText = 'دورك الآن (آخر نقلة للكمبيوتر مميزة)';
     }
 
-    SoundEffects.play(madeThabet ? 'mill.wav' : 'place.wav', enabled: widget.soundEnabled);
     setState(() {
       _state = next;
       _aiThinking = false;
@@ -977,7 +631,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     final b = List<int?>.from(board);
     if (m.from != null) b[m.from!] = null;
     b[m.to] = 2;
-    if (_formsThabet(b, m.to, 2)) p += 500;
+    if (_formsMill(b, m.to, 2)) p += 500;
     p += (adjacent[m.to]?.length ?? 0) * 15;
     return p;
   }
@@ -993,10 +647,18 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       return res;
     }
 
+    int count = board.where((c) => c == player).length;
+    bool canFly = count <= 3;
     for (int i = 0; i < 24; i++) {
       if (board[i] == player) {
-        for (final n in adjacent[i]!) {
-          if (board[n] == null) res.add(_AiMove(from: i, to: n));
+        if (canFly) {
+          for (int j = 0; j < 24; j++) {
+            if (board[j] == null) res.add(_AiMove(from: i, to: j));
+          }
+        } else {
+          for (final n in adjacent[i]!) {
+            if (board[n] == null) res.add(_AiMove(from: i, to: n));
+          }
         }
       }
     }
@@ -1010,7 +672,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     if (player == 1 && s.p1RemainingToPlace > 0) s.p1RemainingToPlace -= 1;
     if (player == 2 && s.p2RemainingToPlace > 0) s.p2RemainingToPlace -= 1;
 
-    if (_formsThabet(s.board, m.to, player)) {
+    if (_formsMill(s.board, m.to, player)) {
       final opp = player == 1 ? 2 : 1;
       final victim = _chooseBestRemovalTarget(s.board, opp);
       if (victim != null) s.board[victim] = null;
@@ -1024,17 +686,17 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   int? _chooseBestRemovalTarget(List<int?> board, int opponent) {
     int? bestIdx;
     int bestScore = -100000;
-    bool allProtected = _allOpponentProtected(board, opponent);
+    bool allInMills = _allOpponentInMills(board, opponent);
 
     for (int i = 0; i < 24; i++) {
       if (board[i] != opponent) continue;
-      if (!allProtected && _isProtectedByThabet(board, i, opponent)) continue;
+      if (!allInMills && _isPartOfAnyMill(board, i, opponent)) continue;
 
       int score = 0;
-      for (final line in thabetLines) {
-        if (!line.contains(i)) continue;
-        int oppCount = line.where((idx) => board[idx] == opponent).length;
-        int emptyCount = line.where((idx) => board[idx] == null).length;
+      for (final m in mills) {
+        if (!m.contains(i)) continue;
+        int oppCount = m.where((idx) => board[idx] == opponent).length;
+        int emptyCount = m.where((idx) => board[idx] == null).length;
         if (oppCount == 2 && emptyCount == 1) score += 120;
         if (oppCount == 1 && emptyCount == 2) score += 25;
       }
@@ -1089,10 +751,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     int aiOpenTwo = 0;
     int p1OpenTwo = 0;
 
-    for (final line in thabetLines) {
-      int c2 = line.where((idx) => s.board[idx] == 2).length;
-      int c1 = line.where((idx) => s.board[idx] == 1).length;
-      int emp = line.where((idx) => s.board[idx] == null).length;
+    for (final m in mills) {
+      int c2 = m.where((idx) => s.board[idx] == 2).length;
+      int c1 = m.where((idx) => s.board[idx] == 1).length;
+      int emp = m.where((idx) => s.board[idx] == null).length;
 
       if (c2 == 3) score += 180;
       if (c1 == 3) score -= 190;
@@ -1149,18 +811,33 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _ruleSection('1. مرحلة الوضع', 'يضع كل لاعب 9 قطع بالتناوب على نقاط التقاطع الفارغة.'),
+              _ruleSection(
+                '1. مرحلة الوضع',
+                'يضع كل لاعب 9 قطع بالتناوب على نقاط التقاطع الفارغة في اللوحة.',
+              ),
               const SizedBox(height: 10),
-              _ruleSection('2. تحقيق «ثبت»', 'صف 3 قطع من لونك على خط مستقيم لتحقيق «ثبت» وإزالة قطعة للخصم (لا تُزال قطعة محمية بـ «ثبت» مكتمل إلا إذا كانت كل قطع الخصم محمية).'),
+              _ruleSection(
+                '2. تكوين «ثبت» (طاحونة)',
+                'عندما تصطف 3 قطع من لونك على خط مستقيم، يتكون «ثبت» وتتمكن من إزالة قطعة للخصم (لا يُزال حجر داخل طاحونة مكتملة إلا إذا كانت كل قطع الخصم في طواحين).',
+              ),
               const SizedBox(height: 10),
-              _ruleSection('3. التحريك المتصل', 'في ثبت يُحرّك اللاعب قطعته إلى نقطة مجاورة فارغة متصلة بالخط، ولا يوجد طيران.'),
+              _ruleSection(
+                '3. التحريك والطيران',
+                'بعد إنهاء وضع القطع، حرّك قطعة إلى نقطة مجاورة فارغة. إذا بقي لك 3 قطع فقط يمكنك «الطيران» إلى أي نقطة فارغة على اللوحة.',
+              ),
               const SizedBox(height: 10),
-              _ruleSection('4. الفوز والأنماط', 'تفوز إذا قلت قطع الخصم عن 3 أو حُصرت حركاته، ويمكن اللعب ضد ${widget.aiName}🤖 (بحمد) أو أونلاين مع صديق.'),
+              _ruleSection(
+                '4. الفوز وتحدي الكمبيوتر',
+                'تفوز إذا انخفضت قطع الخصم إلى أقل من 3 قطع أو تعذرت عليه أي حركة قانونية. يمكنك تجربة التحدي أمام ${widget.aiName}🤖 (بحمد) على مستوى «صعب جداً 🔥».',
+              ),
             ],
           ),
         ),
         actions: [
-          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('فهمت')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('فهمت'),
+          ),
         ],
       ),
     );
@@ -1197,7 +874,7 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
               },
             ),
             const SizedBox(height: 8),
-            Text('مستوى صعوبة ${widget.aiName}🤖 (بحمد):'),
+            const Text('مستوى صعوبة ${widget.aiName}🤖 (بحمد):'),
             const SizedBox(height: 6),
             SegmentedButton<AiDifficulty>(
               segments: AiDifficulty.values
@@ -1252,7 +929,10 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
             },
             child: const Text('تصفير السجل'),
           ),
-          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إغلاق'),
+          ),
         ],
       ),
     );
@@ -1271,6 +951,11 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final effectiveAiName = '${widget.aiName}🤖 (بحمد)';
+    final boardBg = switch (widget.themePreset) {
+      AppThemePreset.wood => const Color(0xFF3A2312),
+      AppThemePreset.emerald => const Color(0xFF10382C),
+      AppThemePreset.obsidian => const Color(0xFF1A1C22),
+    };
     final lineColor = switch (widget.themePreset) {
       AppThemePreset.wood => const Color(0xFFD9A066),
       AppThemePreset.emerald => const Color(0xFF6EE7B7),
@@ -1280,8 +965,6 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.brandTitle),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
         actions: [
           IconButton(icon: const Icon(Icons.help_outline), tooltip: 'قوانين اللعبة', onPressed: _openRulesDialog),
           IconButton(icon: const Icon(Icons.bar_chart), tooltip: 'الإحصائيات', onPressed: _openStatsDialog),
@@ -1290,99 +973,84 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           child: Column(
             children: [
-              // شريط أنماط اللعب في صف نظيف بدون إطارات مزعجة
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(
-                    child: ChoiceChip(
-                      label: Text('ضد $effectiveAiName', overflow: TextOverflow.ellipsis),
-                      selected: _gameMode == GameMode.vsAi,
-                      onSelected: (_) {
-                        _roomSub?.cancel();
-                        setState(() {
-                          _gameMode = GameMode.vsAi;
-                          _roomCode = null;
-                        });
-                        _startNewGame();
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
                   ChoiceChip(
-                    label: const Text('أونلاين 🌐'),
-                    selected: _gameMode == GameMode.onlineFriend,
-                    onSelected: (_) => _openOnlineLobbyDialog(),
+                    label: Text(_vsAi ? 'ضد $effectiveAiName' : 'لاعبان'),
+                    selected: _vsAi,
+                    onSelected: (v) {
+                      setState(() => _vsAi = true);
+                      _startNewGame();
+                    },
                   ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    onPressed: _history.isNotEmpty && !_aiThinking && _gameMode != GameMode.onlineFriend
-                        ? _undoLastTurn
-                        : null,
-                    tooltip: 'تراجع',
-                    icon: const Icon(Icons.undo),
+                  Text('المستوى: ${_difficultyLabel(widget.difficulty)}', style: const TextStyle(fontSize: 13)),
+                  TextButton.icon(
+                    onPressed: _history.isNotEmpty && !_aiThinking ? _undoLastTurn : null,
+                    icon: const Icon(Icons.undo, size: 18),
+                    label: const Text('تراجع'),
                   ),
                 ],
               ),
-              if (_gameMode == GameMode.onlineFriend && _roomCode != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'غرفة: $_roomCode • أنت: اللاعب $_onlinePlayerId • ${_friendJoined ? "الصديق متصل" : "بانتظار الصديق"}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-              const SizedBox(height: 8),
-              Text(
-                _state.statusText,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                child: Text(
+                  _state.statusText,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
               ),
-              const SizedBox(height: 8),
-              // اللوحة بدون إطار صندوقي محيط
+              const SizedBox(height: 10),
               Expanded(
                 child: AspectRatio(
                   aspectRatio: 1,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final w = constraints.maxWidth;
-                      final h = constraints.maxHeight;
-                      return Stack(
-                        children: [
-                          CustomPaint(
-                            size: Size(w, h),
-                            painter: _ThabetBoardPainter(lineColor: lineColor, coords: nodeCoords),
-                          ),
-                          for (int i = 0; i < 24; i++)
-                            Positioned(
-                              left: nodeCoords[i].dx * w - 23,
-                              top: nodeCoords[i].dy * h - 23,
-                              child: GestureDetector(
-                                onTap: () => _onNodeTap(i),
-                                child: _buildFloatingOrbWidget(i, lineColor),
-                              ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: boardBg,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: lineColor.withValues(alpha: 0.5), width: 2),
+                    ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final w = constraints.maxWidth;
+                        final h = constraints.maxHeight;
+                        return Stack(
+                          children: [
+                            CustomPaint(
+                              size: Size(w, h),
+                              painter: _ThabetBoardPainter(lineColor: lineColor, coords: nodeCoords),
                             ),
-                        ],
-                      );
-                    },
+                            for (int i = 0; i < 24; i++)
+                              Positioned(
+                                left: nodeCoords[i].dx * w - 20,
+                                top: nodeCoords[i].dy * h - 20,
+                                child: GestureDetector(
+                                  onTap: () => _onNodeTap(i),
+                                  child: _buildNodeWidget(i),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              // صف عداد القطع بدون إطار
+              const SizedBox(height: 10),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Text(
-                    'أنت (أبيض): ${_state.p1PiecesOnBoard + _state.p1RemainingToPlace}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    '$effectiveAiName (أحمر): ${_state.p2PiecesOnBoard + _state.p2RemainingToPlace}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                  Text('أنت (أبيض): ${_state.p1PiecesOnBoard + _state.p1RemainingToPlace}'),
+                  Text('$effectiveAiName (أحمر): ${_state.p2PiecesOnBoard + _state.p2RemainingToPlace}'),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1401,58 +1069,35 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     );
   }
 
-  // كرات عائمة بدون إطار صندوقي مزعج
-  Widget _buildFloatingOrbWidget(int idx, Color lineColor) {
+  Widget _buildNodeWidget(int idx) {
     final occupant = _state.board[idx];
     final isSelected = _state.selectedIndex == idx;
     final isAiLast = _state.aiHighlightNodes.contains(idx);
-    final isCompletedLine = _state.activeLineNodes.contains(idx);
 
-    if (occupant == null) {
-      return SizedBox(
-        width: 46,
-        height: 46,
-        child: Center(
-          child: Container(
-            width: 14,
-            height: 14,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: lineColor.withValues(alpha: 0.42),
-            ),
-          ),
-        ),
-      );
+    Color fill;
+    if (occupant == 1) {
+      fill = const Color(0xFFF8FAFC);
+    } else if (occupant == 2) {
+      fill = const Color(0xFFEF4444);
+    } else {
+      fill = Colors.amber.withValues(alpha: 0.22);
     }
 
-    final List<Color> gradientColors = occupant == 1
-        ? const [Color(0xFFFFFFFF), Color(0xFFCBD5E1)]
-        : const [Color(0xFFFF7A7A), Color(0xFFDC2626)];
-
-    final glowColor = isSelected
-        ? Colors.cyanAccent
-        : (isCompletedLine
-            ? Colors.limeAccent
-            : (isAiLast ? Colors.orangeAccent : Colors.black.withValues(alpha: 0.45)));
-
     return Container(
-      width: 46,
-      height: 46,
+      width: 40,
+      height: 40,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: RadialGradient(
-          center: const Alignment(-0.32, -0.35),
-          radius: 0.75,
-          colors: gradientColors,
+        color: fill,
+        border: Border.all(
+          color: isSelected
+              ? Colors.cyanAccent
+              : (isAiLast ? Colors.orangeAccent : Colors.black54),
+          width: isSelected || isAiLast ? 3.5 : 1.5,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: glowColor,
-            blurRadius: (isSelected || isCompletedLine || isAiLast) ? 14 : 8,
-            spreadRadius: (isSelected || isCompletedLine || isAiLast) ? 2 : 0.5,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        boxShadow: isAiLast
+            ? [const BoxShadow(color: Colors.orangeAccent, blurRadius: 8, spreadRadius: 1)]
+            : null,
       ),
     );
   }
@@ -1474,7 +1119,7 @@ class _ThabetBoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = lineColor
-      ..strokeWidth = 2.8
+      ..strokeWidth = 2.6
       ..style = PaintingStyle.stroke;
 
     void connect(int a, int b) {
@@ -1485,15 +1130,19 @@ class _ThabetBoardPainter extends CustomPainter {
       );
     }
 
+    // Outer square
     connect(0, 1); connect(1, 2); connect(2, 14); connect(14, 23);
     connect(23, 22); connect(22, 21); connect(21, 9); connect(9, 0);
 
+    // Middle square
     connect(3, 4); connect(4, 5); connect(5, 13); connect(13, 20);
     connect(20, 19); connect(19, 18); connect(18, 10); connect(10, 3);
 
+    // Inner square
     connect(6, 7); connect(7, 8); connect(8, 12); connect(12, 17);
     connect(17, 16); connect(16, 15); connect(15, 11); connect(11, 6);
 
+    // Cross connectors
     connect(1, 4); connect(4, 7);
     connect(9, 10); connect(10, 11);
     connect(12, 13); connect(13, 14);

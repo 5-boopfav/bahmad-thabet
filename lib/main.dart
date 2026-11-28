@@ -21,19 +21,37 @@ class SoundEffects {
   }
 }
 
-enum AppThemePreset { wood, emerald, obsidian }
+enum BoardTheme { wood, emerald, obsidian }
 
-enum AiDifficulty { medium, hard, extreme }
+enum AiLevel { easy, medium, hard }
 
-enum GameMode { vsAi, localTwoPlayers }
+enum GameMode { vsAi, twoPlayers }
 
 enum GamePhase { placing, moving, gameOver }
 
 enum TurnStage { selectOrPlace, removePiece }
 
+class MoveRecord {
+  final List<int?> boardBefore;
+  final int player;
+  final int? from;
+  final int to;
+  final int? removedIndex;
+  final String description;
+
+  MoveRecord({
+    required this.boardBefore,
+    required this.player,
+    required this.from,
+    required this.to,
+    required this.removedIndex,
+    required this.description,
+  });
+}
+
 class GameSnapshot {
-  final List<int?> board;
-  int currentPlayer; // 1 = Player 1, 2 = Player 2 / AI
+  final List<int?> board; // null = empty, 1 = white (أبيض), 2 = black (أسود)
+  int currentPlayer;
   GamePhase phase;
   TurnStage stage;
   int p1RemainingToPlace;
@@ -43,7 +61,9 @@ class GameSnapshot {
   int? selectedIndex;
   String statusText;
   int? winner;
-  Set<int> lastMovedNodes;
+  String winReason;
+  bool showThabetBadge;
+  Set<int> highlightNodes;
 
   GameSnapshot({
     required this.board,
@@ -57,8 +77,10 @@ class GameSnapshot {
     required this.selectedIndex,
     required this.statusText,
     required this.winner,
-    required this.lastMovedNodes,
-  });
+    this.winReason = '',
+    this.showThabetBadge = false,
+    Set<int>? highlightNodes,
+  }) : highlightNodes = highlightNodes ?? <int>{};
 
   GameSnapshot clone() => GameSnapshot(
         board: List<int?>.from(board),
@@ -72,7 +94,9 @@ class GameSnapshot {
         selectedIndex: selectedIndex,
         statusText: statusText,
         winner: winner,
-        lastMovedNodes: Set<int>.from(lastMovedNodes),
+        winReason: winReason,
+        showThabetBadge: showThabetBadge,
+        highlightNodes: Set<int>.from(highlightNodes),
       );
 }
 
@@ -85,96 +109,34 @@ class ThabetApp extends StatefulWidget {
 
 class _ThabetAppState extends State<ThabetApp> {
   bool _soundEnabled = true;
-  AppThemePreset _themePreset = AppThemePreset.wood;
-  AiDifficulty _difficulty = AiDifficulty.extreme;
-
-  int _totalGames = 0;
-  int _wins = 0;
-  int _losses = 0;
-  int _draws = 0;
+  bool _hintsEnabled = true;
+  BoardTheme _boardTheme = BoardTheme.wood;
+  AiLevel _aiLevel = AiLevel.medium;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedData();
+    _loadPrefs();
   }
 
-  Future<void> _loadSavedData() async {
+  Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _soundEnabled = prefs.getBool('sound_enabled') ?? true;
-      final themeIdx = prefs.getInt('theme_preset') ?? AppThemePreset.wood.index;
-      _themePreset = AppThemePreset.values[themeIdx.clamp(0, AppThemePreset.values.length - 1)];
-      final diffIdx = prefs.getInt('ai_difficulty') ?? AiDifficulty.extreme.index;
-      _difficulty = AiDifficulty.values[diffIdx.clamp(0, AiDifficulty.values.length - 1)];
-
-      _totalGames = prefs.getInt('stat_total') ?? 0;
-      _wins = prefs.getInt('stat_wins') ?? 0;
-      _losses = prefs.getInt('stat_losses') ?? 0;
-      _draws = prefs.getInt('stat_draws') ?? 0;
+      _hintsEnabled = prefs.getBool('hints_enabled') ?? true;
+      final tIdx = prefs.getInt('board_theme') ?? BoardTheme.wood.index;
+      _boardTheme = BoardTheme.values[tIdx.clamp(0, BoardTheme.values.length - 1)];
+      final lIdx = prefs.getInt('ai_level') ?? AiLevel.medium.index;
+      _aiLevel = AiLevel.values[lIdx.clamp(0, AiLevel.values.length - 1)];
     });
   }
 
-  Future<void> _saveSettings() async {
+  Future<void> _savePrefs() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('sound_enabled', _soundEnabled);
-    await prefs.setInt('theme_preset', _themePreset.index);
-    await prefs.setInt('ai_difficulty', _difficulty.index);
-  }
-
-  Future<void> _recordMatchResult(int? winner) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _totalGames += 1;
-      if (winner == 1) {
-        _wins += 1;
-      } else if (winner == 2) {
-        _losses += 1;
-      } else {
-        _draws += 1;
-      }
-    });
-    await prefs.setInt('stat_total', _totalGames);
-    await prefs.setInt('stat_wins', _wins);
-    await prefs.setInt('stat_losses', _losses);
-    await prefs.setInt('stat_draws', _draws);
-  }
-
-  Future<void> _resetStats() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _totalGames = 0;
-      _wins = 0;
-      _losses = 0;
-      _draws = 0;
-    });
-    await prefs.setInt('stat_total', 0);
-    await prefs.setInt('stat_wins', 0);
-    await prefs.setInt('stat_losses', 0);
-    await prefs.setInt('stat_draws', 0);
-  }
-
-  ThemeData _buildTheme() {
-    switch (_themePreset) {
-      case AppThemePreset.emerald:
-        return ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F6B4E), brightness: Brightness.dark),
-          scaffoldBackgroundColor: const Color(0xFF091E18),
-        );
-      case AppThemePreset.obsidian:
-        return ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFD4AF37), brightness: Brightness.dark),
-          scaffoldBackgroundColor: const Color(0xFF101114),
-        );
-      case AppThemePreset.wood:
-        return ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFB4692B), brightness: Brightness.dark),
-          scaffoldBackgroundColor: const Color(0xFF1D130C),
-        );
-    }
+    await prefs.setBool('hints_enabled', _hintsEnabled);
+    await prefs.setInt('board_theme', _boardTheme.index);
+    await prefs.setInt('ai_level', _aiLevel.index);
   }
 
   @override
@@ -182,78 +144,416 @@ class _ThabetAppState extends State<ThabetApp> {
     return MaterialApp(
       title: 'ثبت',
       debugShowCheckedModeBanner: false,
-      theme: _buildTheme(),
+      theme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF141414),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFD9A05B),
+          brightness: Brightness.dark,
+        ),
+      ),
       home: Directionality(
         textDirection: TextDirection.rtl,
-        child: ThabetHomeScreen(
-          brandTitle: 'BAHMAD THABET',
-          aiName: 'الكمبيوتر',
+        child: MainMenuScreen(
           soundEnabled: _soundEnabled,
-          themePreset: _themePreset,
-          difficulty: _difficulty,
-          totalGames: _totalGames,
-          wins: _wins,
-          losses: _losses,
-          draws: _draws,
-          onToggleSound: (val) {
-            setState(() => _soundEnabled = val);
-            _saveSettings();
+          hintsEnabled: _hintsEnabled,
+          boardTheme: _boardTheme,
+          aiLevel: _aiLevel,
+          onToggleSound: (v) {
+            setState(() => _soundEnabled = v);
+            _savePrefs();
           },
-          onChangeTheme: (preset) {
-            setState(() => _themePreset = preset);
-            _saveSettings();
+          onToggleHints: (v) {
+            setState(() => _hintsEnabled = v);
+            _savePrefs();
           },
-          onChangeDifficulty: (diff) {
-            setState(() => _difficulty = diff);
-            _saveSettings();
+          onChangeTheme: (t) {
+            setState(() => _boardTheme = t);
+            _savePrefs();
           },
-          onMatchFinished: _recordMatchResult,
-          onResetStats: _resetStats,
+          onChangeAiLevel: (l) {
+            setState(() => _aiLevel = l);
+            _savePrefs();
+          },
         ),
       ),
     );
   }
 }
 
-class ThabetHomeScreen extends StatefulWidget {
-  final String brandTitle;
-  final String aiName;
+class MainMenuScreen extends StatelessWidget {
   final bool soundEnabled;
-  final AppThemePreset themePreset;
-  final AiDifficulty difficulty;
-  final int totalGames;
-  final int wins;
-  final int losses;
-  final int draws;
+  final bool hintsEnabled;
+  final BoardTheme boardTheme;
+  final AiLevel aiLevel;
   final ValueChanged<bool> onToggleSound;
-  final ValueChanged<AppThemePreset> onChangeTheme;
-  final ValueChanged<AiDifficulty> onChangeDifficulty;
-  final ValueChanged<int?> onMatchFinished;
-  final VoidCallback onResetStats;
+  final ValueChanged<bool> onToggleHints;
+  final ValueChanged<BoardTheme> onChangeTheme;
+  final ValueChanged<AiLevel> onChangeAiLevel;
 
-  const ThabetHomeScreen({
+  const MainMenuScreen({
     super.key,
-    required this.brandTitle,
-    required this.aiName,
     required this.soundEnabled,
-    required this.themePreset,
-    required this.difficulty,
-    required this.totalGames,
-    required this.wins,
-    required this.losses,
-    required this.draws,
+    required this.hintsEnabled,
+    required this.boardTheme,
+    required this.aiLevel,
     required this.onToggleSound,
+    required this.onToggleHints,
     required this.onChangeTheme,
-    required this.onChangeDifficulty,
-    required this.onMatchFinished,
-    required this.onResetStats,
+    required this.onChangeAiLevel,
+  });
+
+  void _openAiLevelSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1D1B18),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'اختر مستوى الكمبيوتر',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            _levelOption(
+              ctx,
+              title: 'سهل',
+              subtitle: 'مناسب للمبتدئين',
+              level: AiLevel.easy,
+            ),
+            const SizedBox(height: 10),
+            _levelOption(
+              ctx,
+              title: 'متوسط',
+              subtitle: 'تحدٍ متوازن',
+              level: AiLevel.medium,
+            ),
+            const SizedBox(height: 10),
+            _levelOption(
+              ctx,
+              title: 'صعب',
+              subtitle: 'خصم أكثر ذكاءً',
+              level: AiLevel.hard,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _levelOption(
+    BuildContext ctx, {
+    required String title,
+    required String subtitle,
+    required AiLevel level,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+          backgroundColor: const Color(0xFF28241F),
+          side: const BorderSide(color: Color(0xFF3E372E)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        onPressed: () {
+          onChangeAiLevel(level);
+          Navigator.pop(ctx);
+          Navigator.push(
+            ctx,
+            MaterialPageRoute(
+              builder: (_) => Directionality(
+                textDirection: TextDirection.rtl,
+                child: GameBoardScreen(
+                  mode: GameMode.vsAi,
+                  aiLevel: level,
+                  boardTheme: boardTheme,
+                  soundEnabled: soundEnabled,
+                  hintsEnabled: hintsEnabled,
+                ),
+              ),
+            ),
+          );
+        },
+        child: Row(
+          children: [
+            const Text('🤖', style: TextStyle(fontSize: 26)),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white)),
+                Text(subtitle, style: const TextStyle(fontSize: 13, color: Colors.white70)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openRulesDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1C19),
+        title: const Text('قوانين اللعبة'),
+        content: const SingleChildScrollView(
+          child: Text(
+            '• يضع كل لاعب 9 حجارة بالتناوب على نقاط التقاطع الفارغة.\n'
+            '• عند صف 3 حجارة من نفس اللون على خط مستقيم يتحقق «ثبت» وتتم إزالة حجر للخصم غير محمي بصف مكتمل.\n'
+            '• بعد اكتمال وضع الحجارة، يتم تحريك الحجر إلى نقطة مجاورة فارغة متصلة بالخط.\n'
+            '• يفوز اللاعب إذا قلت حجارة الخصم عن 3 أو لم يعد لديه حركة متاحة.',
+            style: TextStyle(fontSize: 14.5, height: 1.6),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('حسناً'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openThemeSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1D1B18),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('مظهر الطاولة', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            _themeTile(ctx, 'خشبي كلاسيكي', BoardTheme.wood, const Color(0xFFD69E5E)),
+            _themeTile(ctx, 'زمردي فاخر', BoardTheme.emerald, const Color(0xFF2E8B6B)),
+            _themeTile(ctx, 'ليلي داكن', BoardTheme.obsidian, const Color(0xFF3A3D45)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _themeTile(BuildContext ctx, String label, BoardTheme t, Color swatch) {
+    final selected = boardTheme == t;
+    return ListTile(
+      leading: CircleAvatar(backgroundColor: swatch, radius: 14),
+      title: Text(label),
+      trailing: selected ? const Icon(Icons.check_circle, color: Color(0xFFD9A05B)) : null,
+      onTap: () {
+        onChangeTheme(t);
+        Navigator.pop(ctx);
+      },
+    );
+  }
+
+  void _openSettingsSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1D1B18),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('الإعدادات', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              title: const Text('الأصوات والمؤثرات'),
+              value: soundEnabled,
+              onChanged: onToggleSound,
+            ),
+            SwitchListTile(
+              title: const Text('إظهار التلميحات'),
+              value: hintsEnabled,
+              onChanged: onToggleHints,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF141414),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+          child: Column(
+            children: [
+              const Spacer(),
+              Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD89E5A),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black54, blurRadius: 12, offset: Offset(0, 5)),
+                  ],
+                ),
+                child: const Center(
+                  child: Text(
+                    '#',
+                    style: TextStyle(
+                      fontSize: 54,
+                      fontWeight: FontWeight.w300,
+                      color: Color(0xFF2B1A0B),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'ثبت',
+                style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Color(0xFFE5B373)),
+              ),
+              const SizedBox(height: 4),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('بحمـد', style: TextStyle(fontSize: 17, color: Colors.white70)),
+                  SizedBox(width: 6),
+                  Text('👑', style: TextStyle(fontSize: 17)),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'لعبة الذكاء والتحدي',
+                style: TextStyle(fontSize: 14.5, color: Colors.white54),
+              ),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFD89E5A),
+                    foregroundColor: const Color(0xFF1B1208),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: () => _openAiLevelSheet(context),
+                  icon: const Icon(Icons.smart_toy),
+                  label: const Text('العب ضد الكمبيوتر', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _menuSecondaryButton(
+                context,
+                icon: Icons.group,
+                label: 'لاعبان على نفس الجهاز',
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: GameBoardScreen(
+                        mode: GameMode.twoPlayers,
+                        aiLevel: aiLevel,
+                        boardTheme: boardTheme,
+                        soundEnabled: soundEnabled,
+                        hintsEnabled: hintsEnabled,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _menuSecondaryButton(
+                context,
+                icon: Icons.menu_book,
+                label: 'قواعد اللعبة',
+                onTap: () => _openRulesDialog(context),
+              ),
+              const SizedBox(height: 12),
+              _menuSecondaryButton(
+                context,
+                icon: Icons.palette,
+                label: 'مظهر الطاولة',
+                onTap: () => _openThemeSheet(context),
+              ),
+              const SizedBox(height: 12),
+              _menuSecondaryButton(
+                context,
+                icon: Icons.settings,
+                label: 'الإعدادات',
+                onTap: () => _openSettingsSheet(context),
+              ),
+              const Spacer(),
+              const Text(
+                'BAHMAD • 2026',
+                style: TextStyle(fontSize: 12, letterSpacing: 1.5, color: Colors.white38),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _menuSecondaryButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          backgroundColor: const Color(0xFF1F1F1F),
+          foregroundColor: Colors.white,
+          side: const BorderSide(color: Color(0xFF333333)),
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        onPressed: onTap,
+        icon: Icon(icon, size: 20, color: const Color(0xFFD89E5A)),
+        label: Text(label, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}
+
+class GameBoardScreen extends StatefulWidget {
+  final GameMode mode;
+  final AiLevel aiLevel;
+  final BoardTheme boardTheme;
+  final bool soundEnabled;
+  final bool hintsEnabled;
+
+  const GameBoardScreen({
+    super.key,
+    required this.mode,
+    required this.aiLevel,
+    required this.boardTheme,
+    required this.soundEnabled,
+    required this.hintsEnabled,
   });
 
   @override
-  State<ThabetHomeScreen> createState() => _ThabetHomeScreenState();
+  State<GameBoardScreen> createState() => _GameBoardScreenState();
 }
 
-class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
+class _GameBoardScreenState extends State<GameBoardScreen> {
   static const List<List<int>> thabetLines = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8],
     [9, 10, 11], [12, 13, 14], [15, 16, 17],
@@ -275,34 +575,59 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   };
 
   static const List<Offset> nodeCoords = [
-    Offset(0.08, 0.08), Offset(0.50, 0.08), Offset(0.92, 0.08),
-    Offset(0.22, 0.22), Offset(0.50, 0.22), Offset(0.78, 0.22),
+    Offset(0.09, 0.09), Offset(0.50, 0.09), Offset(0.91, 0.09),
+    Offset(0.23, 0.23), Offset(0.50, 0.23), Offset(0.77, 0.23),
     Offset(0.36, 0.36), Offset(0.50, 0.36), Offset(0.64, 0.36),
-    Offset(0.08, 0.50), Offset(0.22, 0.50), Offset(0.36, 0.50),
-    Offset(0.64, 0.50), Offset(0.78, 0.50), Offset(0.92, 0.50),
+    Offset(0.09, 0.50), Offset(0.23, 0.50), Offset(0.36, 0.50),
+    Offset(0.64, 0.50), Offset(0.77, 0.50), Offset(0.91, 0.50),
     Offset(0.36, 0.64), Offset(0.50, 0.64), Offset(0.64, 0.64),
-    Offset(0.22, 0.78), Offset(0.50, 0.78), Offset(0.78, 0.78),
-    Offset(0.08, 0.92), Offset(0.50, 0.92), Offset(0.92, 0.92),
+    Offset(0.23, 0.77), Offset(0.50, 0.77), Offset(0.77, 0.77),
+    Offset(0.09, 0.91), Offset(0.50, 0.91), Offset(0.91, 0.91),
   ];
 
   late GameSnapshot _state;
-  final List<GameSnapshot> _history = [];
-  GameMode _gameMode = GameMode.vsAi;
+  final List<MoveRecord> _moves = [];
+  bool _isPaused = false;
   bool _aiThinking = false;
-  bool _resultRecorded = false;
+  int _elapsedSeconds = 0;
+  Timer? _clockTimer;
   final Random _rng = Random();
 
   @override
   void initState() {
     super.initState();
-    _startNewGame(triggerAiIfNeeded: false);
+    _newMatch();
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_isPaused && _state.phase != GamePhase.gameOver && mounted) {
+        setState(() => _elapsedSeconds += 1);
+      }
+    });
   }
 
-  void _startNewGame({bool triggerAiIfNeeded = true}) {
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
+  }
+
+  String _formatClock(int sec) {
+    final m = (sec ~/ 60).toString();
+    final s = (sec % 60).toString().padLeft(2, '0');
+    return '$m : $s';
+  }
+
+  String _formatElapsed(int sec) {
+    final m = (sec ~/ 60).toString().padLeft(2, '0');
+    final s = (sec % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  void _newMatch() {
     setState(() {
-      _history.clear();
+      _moves.clear();
+      _isPaused = false;
       _aiThinking = false;
-      _resultRecorded = false;
+      _elapsedSeconds = 0;
       _state = GameSnapshot(
         board: List<int?>.filled(24, null),
         currentPlayer: 1,
@@ -313,16 +638,13 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
         p1PiecesOnBoard: 0,
         p2PiecesOnBoard: 0,
         selectedIndex: null,
-        statusText: _gameMode == GameMode.vsAi
-            ? 'دورك: ضع قطعة على اللوحة'
-            : 'دور اللاعب 1 (أبيض): ضع قطعة',
+        statusText: 'دور الأبيض: ضع حجراً',
         winner: null,
-        lastMovedNodes: {},
+        winReason: '',
+        showThabetBadge: false,
+        highlightNodes: {},
       );
     });
-    if (triggerAiIfNeeded && _gameMode == GameMode.vsAi && _state.currentPlayer == 2) {
-      _runAiTurn();
-    }
   }
 
   bool _formsThabet(List<int?> board, int pos, int player) {
@@ -334,23 +656,19 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     return false;
   }
 
-  bool _isProtectedByThabet(List<int?> board, int pos, int player) {
-    return _formsThabet(board, pos, player);
-  }
+  bool _isProtected(List<int?> board, int pos, int player) => _formsThabet(board, pos, player);
 
-  bool _allOpponentProtected(List<int?> board, int opponent) {
+  bool _allProtected(List<int?> board, int opponent) {
     for (int i = 0; i < 24; i++) {
-      if (board[i] == opponent && !_isProtectedByThabet(board, i, opponent)) {
+      if (board[i] == opponent && !_isProtected(board, i, opponent)) {
         return false;
       }
     }
     return true;
   }
 
-  bool _hasAnyLegalMove(List<int?> board, int player, GamePhase phase, int remainingToPlace) {
-    if (remainingToPlace > 0) {
-      return board.any((cell) => cell == null);
-    }
+  bool _hasLegalMove(List<int?> board, int player, int remainingToPlace) {
+    if (remainingToPlace > 0) return board.any((c) => c == null);
     for (int i = 0; i < 24; i++) {
       if (board[i] == player) {
         for (final n in adjacent[i]!) {
@@ -361,183 +679,188 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
     return false;
   }
 
-  void _syncCountsAndPhase(GameSnapshot snap) {
-    snap.p1PiecesOnBoard = snap.board.where((c) => c == 1).length;
-    snap.p2PiecesOnBoard = snap.board.where((c) => c == 2).length;
+  void _syncCountsAndWin(GameSnapshot s) {
+    s.p1PiecesOnBoard = s.board.where((c) => c == 1).length;
+    s.p2PiecesOnBoard = s.board.where((c) => c == 2).length;
 
-    if (snap.winner != null) {
-      snap.phase = GamePhase.gameOver;
+    if (s.winner != null) {
+      s.phase = GamePhase.gameOver;
       return;
     }
 
-    if (snap.p1RemainingToPlace > 0 || snap.p2RemainingToPlace > 0) {
-      snap.phase = GamePhase.placing;
+    if (s.p1RemainingToPlace > 0 || s.p2RemainingToPlace > 0) {
+      s.phase = GamePhase.placing;
       return;
     }
 
-    if (snap.p1PiecesOnBoard < 3) {
-      snap.winner = 2;
-      snap.phase = GamePhase.gameOver;
-      snap.statusText = _gameMode == GameMode.vsAi ? 'فاز ${widget.aiName}🤖 (بحمد)!' : 'فاز اللاعب 2!';
+    if (s.p1PiecesOnBoard < 3) {
+      s.winner = 2;
+      s.phase = GamePhase.gameOver;
+      s.winReason = 'اللاعب الأول يمتلك أقل من 3 حجارة';
+      s.statusText = 'فاز الأسود • ${s.winReason}';
       return;
     }
-    if (snap.p2PiecesOnBoard < 3) {
-      snap.winner = 1;
-      snap.phase = GamePhase.gameOver;
-      snap.statusText = _gameMode == GameMode.vsAi ? 'مبروك! فزت بالجولة 👑' : 'فاز اللاعب 1!';
+    if (s.p2PiecesOnBoard < 3) {
+      s.winner = 1;
+      s.phase = GamePhase.gameOver;
+      s.winReason = 'اللاعب الثاني يمتلك أقل من 3 حجارة';
+      s.statusText = 'فاز الأبيض • ${s.winReason}';
       return;
     }
 
-    snap.phase = GamePhase.moving;
-
-    int rem = snap.currentPlayer == 1 ? snap.p1RemainingToPlace : snap.p2RemainingToPlace;
-    if (!_hasAnyLegalMove(snap.board, snap.currentPlayer, snap.phase, rem)) {
-      snap.winner = snap.currentPlayer == 1 ? 2 : 1;
-      snap.phase = GamePhase.gameOver;
-      snap.statusText = snap.winner == 1
-          ? (_gameMode == GameMode.vsAi ? 'مبروك! فزت بالجولة 👑' : 'فاز اللاعب 1!')
-          : (_gameMode == GameMode.vsAi ? 'فاز ${widget.aiName}🤖 (بحمد)!' : 'فاز اللاعب 2!');
+    s.phase = GamePhase.moving;
+    final rem = s.currentPlayer == 1 ? s.p1RemainingToPlace : s.p2RemainingToPlace;
+    if (!_hasLegalMove(s.board, s.currentPlayer, rem)) {
+      s.winner = s.currentPlayer == 1 ? 2 : 1;
+      s.phase = GamePhase.gameOver;
+      s.winReason = s.currentPlayer == 1 ? 'اللاعب الأول لا يملك حركة متاحة' : 'اللاعب الثاني لا يملك حركة متاحة';
+      s.statusText = s.winner == 1 ? 'فاز الأبيض • ${s.winReason}' : 'فاز الأسود • ${s.winReason}';
     }
   }
 
-  void _checkGameOverNotification(GameSnapshot snap) {
-    if (snap.phase == GamePhase.gameOver && !_resultRecorded) {
-      _resultRecorded = true;
-      widget.onMatchFinished(snap.winner);
-    }
+  String _turnText(int player, GamePhase phase) {
+    final colorName = player == 1 ? 'الأبيض' : 'الأسود';
+    final act = phase == GamePhase.placing ? 'ضع حجراً' : 'حرّك حجراً';
+    return 'دور $colorName: $act';
   }
 
-  String _nextTurnPrompt(int turnPlayer, GamePhase phase) {
-    final action = phase == GamePhase.placing ? 'ضع قطعة' : 'حرّك قطعة إلى نقطة مجاورة';
-    if (_gameMode == GameMode.vsAi) {
-      return turnPlayer == 2 ? 'يفكر ${widget.aiName}🤖 (بحمد)...' : 'دورك: $action';
-    }
-    return turnPlayer == 1 ? 'دور اللاعب 1 (أبيض): $action' : 'دور اللاعب 2 (أحمر): $action';
-  }
-
-  void _onNodeTap(int index) {
-    if (_aiThinking || _state.phase == GamePhase.gameOver) return;
-    if (_gameMode == GameMode.vsAi && _state.currentPlayer == 2) return;
+  void _onNodeTap(int idx) {
+    if (_isPaused || _aiThinking || _state.phase == GamePhase.gameOver) return;
+    if (widget.mode == GameMode.vsAi && _state.currentPlayer == 2) return;
 
     final next = _state.clone();
     final player = next.currentPlayer;
     final opponent = player == 1 ? 2 : 1;
 
     if (next.stage == TurnStage.removePiece) {
-      if (next.board[index] != opponent) {
-        setState(() => next.statusText = 'اختر قطعة للخصم لإزالتها');
+      if (next.board[idx] != opponent) {
+        setState(() => _state.statusText = player == 1 ? 'الأبيض يجب أن يزيل حجراً من الخصم' : 'الأسود يجب أن يزيل حجراً من الخصم');
         return;
       }
-      if (!_allOpponentProtected(next.board, opponent) && _isProtectedByThabet(next.board, index, opponent)) {
-        setState(() => next.statusText = 'لا يمكن إزالة قطعة محمية بـ «ثبت» مكتمل');
+      if (!_allProtected(next.board, opponent) && _isProtected(next.board, idx, opponent)) {
+        setState(() => _state.statusText = 'لا يمكن إزالة حجر محمي بـ «ثبت»');
         return;
       }
-      _history.add(_state.clone());
-      next.board[index] = null;
+
+      final boardBefore = List<int?>.from(_state.board);
+      next.board[idx] = null;
       next.stage = TurnStage.selectOrPlace;
       next.selectedIndex = null;
-      next.lastMovedNodes = {index};
+      next.showThabetBadge = false;
+      next.highlightNodes = {idx};
       next.currentPlayer = opponent;
-      _syncCountsAndPhase(next);
+      _syncCountsAndWin(next);
       if (next.phase != GamePhase.gameOver) {
-        next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
+        next.statusText = _turnText(next.currentPlayer, next.phase);
       }
+
+      _moves.add(MoveRecord(
+        boardBefore: boardBefore,
+        player: player,
+        from: null,
+        to: idx,
+        removedIndex: idx,
+        description: '${player == 1 ? "الأبيض" : "الأسود"} أزال حجراً',
+      ));
+
       SoundEffects.play('remove.wav', enabled: widget.soundEnabled);
       setState(() => _state = next);
-      _checkGameOverNotification(_state);
-      if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
+      if (widget.mode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
         _runAiTurn();
       }
       return;
     }
 
     if (next.phase == GamePhase.placing) {
-      if (next.board[index] != null) return;
-      _history.add(_state.clone());
-      next.board[index] = player;
+      if (next.board[idx] != null) return;
+      final boardBefore = List<int?>.from(_state.board);
+      next.board[idx] = player;
       if (player == 1) {
         next.p1RemainingToPlace -= 1;
       } else {
         next.p2RemainingToPlace -= 1;
       }
-      next.lastMovedNodes = {index};
-      _syncCountsAndPhase(next);
+      next.highlightNodes = {idx};
+      _syncCountsAndWin(next);
 
-      if (_formsThabet(next.board, index, player)) {
+      if (_formsThabet(next.board, idx, player)) {
         next.stage = TurnStage.removePiece;
-        next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
+        next.showThabetBadge = true;
+        next.statusText = player == 1 ? 'الأبيض يجب أن يزيل حجراً من الخصم' : 'الأسود يجب أن يزيل حجراً من الخصم';
         SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
       } else {
+        next.showThabetBadge = false;
         next.currentPlayer = opponent;
-        _syncCountsAndPhase(next);
+        _syncCountsAndWin(next);
         if (next.phase != GamePhase.gameOver) {
-          next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
+          next.statusText = _turnText(next.currentPlayer, next.phase);
         }
+        _moves.add(MoveRecord(
+          boardBefore: boardBefore,
+          player: player,
+          from: null,
+          to: idx,
+          removedIndex: null,
+          description: '${player == 1 ? "الأبيض" : "الأسود"} وضع حجراً',
+        ));
         SoundEffects.play('place.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
-        _checkGameOverNotification(_state);
-        if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
+        if (widget.mode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
           _runAiTurn();
         }
       }
       return;
     }
 
-    if (next.board[index] == player) {
+    if (next.board[idx] == player) {
       setState(() {
-        _state.selectedIndex = index;
-        _state.statusText = 'تم تحديد القطعة — اختر نقطة مجاورة فارغة';
+        _state.selectedIndex = idx;
+        _state.statusText = 'تم تحديد الحجر — اختر نقطة مجاورة فارغة';
       });
       return;
     }
 
-    if (next.selectedIndex != null && next.board[index] == null) {
+    if (next.selectedIndex != null && next.board[idx] == null) {
       final from = next.selectedIndex!;
-      bool validMove = adjacent[from]?.contains(index) ?? false;
-      if (!validMove) {
-        setState(() => _state.statusText = 'النقطة غير متجاورة مع القطعة المحددة');
+      if (!(adjacent[from]?.contains(idx) ?? false)) {
+        setState(() => _state.statusText = 'النقطة غير متجاورة مع الحجر المحدد');
         return;
       }
 
-      _history.add(_state.clone());
+      final boardBefore = List<int?>.from(_state.board);
       next.board[from] = null;
-      next.board[index] = player;
+      next.board[idx] = player;
       next.selectedIndex = null;
-      next.lastMovedNodes = {from, index};
-      _syncCountsAndPhase(next);
+      next.highlightNodes = {from, idx};
+      _syncCountsAndWin(next);
 
-      if (_formsThabet(next.board, index, player)) {
+      if (_formsThabet(next.board, idx, player)) {
         next.stage = TurnStage.removePiece;
-        next.statusText = 'تم «ثبت»! اختر قطعة للخصم لإزالتها';
+        next.showThabetBadge = true;
+        next.statusText = player == 1 ? 'الأبيض يجب أن يزيل حجراً من الخصم' : 'الأسود يجب أن يزيل حجراً من الخصم';
         SoundEffects.play('mill.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
       } else {
+        next.showThabetBadge = false;
         next.currentPlayer = opponent;
-        _syncCountsAndPhase(next);
+        _syncCountsAndWin(next);
         if (next.phase != GamePhase.gameOver) {
-          next.statusText = _nextTurnPrompt(next.currentPlayer, next.phase);
+          next.statusText = _turnText(next.currentPlayer, next.phase);
         }
+        _moves.add(MoveRecord(
+          boardBefore: boardBefore,
+          player: player,
+          from: from,
+          to: idx,
+          removedIndex: null,
+          description: '${player == 1 ? "الأبيض" : "الأسود"} حرّك حجراً',
+        ));
         SoundEffects.play('place.wav', enabled: widget.soundEnabled);
         setState(() => _state = next);
-        _checkGameOverNotification(_state);
-        if (_gameMode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
+        if (widget.mode == GameMode.vsAi && _state.phase != GamePhase.gameOver && _state.currentPlayer == 2) {
           _runAiTurn();
         }
-      }
-    }
-  }
-
-  void _undoLastTurn() {
-    if (_aiThinking || _history.isEmpty) return;
-    while (_history.isNotEmpty) {
-      final prev = _history.removeLast();
-      if (_gameMode != GameMode.vsAi || prev.currentPlayer == 1) {
-        setState(() {
-          _state = prev;
-          _resultRecorded = false;
-        });
-        return;
       }
     }
   }
@@ -545,502 +868,498 @@ class _ThabetHomeScreenState extends State<ThabetHomeScreen> {
   Future<void> _runAiTurn() async {
     setState(() {
       _aiThinking = true;
-      _state.statusText = 'يفكر ${widget.aiName}🤖 (بحمد)...';
+      _state.statusText = 'دور الأسود: يفكر الكمبيوتر...';
     });
 
-    await Future.delayed(const Duration(milliseconds: 220));
+    await Future.delayed(const Duration(milliseconds: 350));
+    if (!mounted) return;
 
-    final snap = _state.clone();
-    final bestMove = _computeBestAiMove(snap);
-
-    if (bestMove == null) {
+    final moves = _generateMoves(_state.board, 2, _state.p2RemainingToPlace);
+    if (moves.isEmpty) {
       setState(() {
         _aiThinking = false;
         _state.winner = 1;
         _state.phase = GamePhase.gameOver;
-        _state.statusText = 'مبروك! فزت بالجولة 👑';
+        _state.winReason = 'اللاعب الثاني لا يملك حركة متاحة';
+        _state.statusText = 'فاز الأبيض • ${_state.winReason}';
       });
-      _checkGameOverNotification(_state);
       return;
     }
 
+    _AiMove chosen;
+    if (widget.aiLevel == AiLevel.easy) {
+      chosen = moves[_rng.nextInt(moves.length)];
+    } else {
+      moves.sort((a, b) => _scoreMove(_state, b).compareTo(_scoreMove(_state, a)));
+      chosen = moves.first;
+    }
+
+    final boardBefore = List<int?>.from(_state.board);
     final next = _state.clone();
     final highlights = <int>{};
-    if (bestMove.from != null) {
-      next.board[bestMove.from!] = null;
-      highlights.add(bestMove.from!);
+    if (chosen.from != null) {
+      next.board[chosen.from!] = null;
+      highlights.add(chosen.from!);
     }
-    next.board[bestMove.to] = 2;
-    highlights.add(bestMove.to);
-    if (next.p2RemainingToPlace > 0) {
-      next.p2RemainingToPlace -= 1;
-    }
-    next.lastMovedNodes = highlights;
-    _syncCountsAndPhase(next);
+    next.board[chosen.to] = 2;
+    highlights.add(chosen.to);
+    if (next.p2RemainingToPlace > 0) next.p2RemainingToPlace -= 1;
 
-    bool madeThabet = _formsThabet(next.board, bestMove.to, 2);
+    int? removed;
+    final madeThabet = _formsThabet(next.board, chosen.to, 2);
     if (madeThabet) {
-      final victim = _chooseBestRemovalTarget(next.board, 1);
-      if (victim != null) {
-        next.board[victim] = null;
-        next.lastMovedNodes.add(victim);
+      next.showThabetBadge = true;
+      removed = _pickVictim(next.board, 1);
+      if (removed != null) {
+        next.board[removed] = null;
+        highlights.add(removed);
       }
+    } else {
+      next.showThabetBadge = false;
     }
 
+    next.highlightNodes = highlights;
     next.currentPlayer = 1;
     next.stage = TurnStage.selectOrPlace;
     next.selectedIndex = null;
-    _syncCountsAndPhase(next);
+    _syncCountsAndWin(next);
     if (next.phase != GamePhase.gameOver) {
-      next.statusText = _nextTurnPrompt(1, next.phase);
+      next.statusText = _turnText(1, next.phase);
     }
+
+    _moves.add(MoveRecord(
+      boardBefore: boardBefore,
+      player: 2,
+      from: chosen.from,
+      to: chosen.to,
+      removedIndex: removed,
+      description: 'الأسود لعب',
+    ));
 
     SoundEffects.play(madeThabet ? 'mill.wav' : 'place.wav', enabled: widget.soundEnabled);
     setState(() {
       _state = next;
       _aiThinking = false;
     });
-    _checkGameOverNotification(_state);
   }
 
-  _AiMove? _computeBestAiMove(GameSnapshot snap) {
-    final moves = _generateMovesForPlayer(snap.board, 2, snap.p2RemainingToPlace);
-    if (moves.isEmpty) return null;
-
-    int depth = switch (widget.difficulty) {
-      AiDifficulty.medium => 2,
-      AiDifficulty.hard => 3,
-      AiDifficulty.extreme => 4,
-    };
-
-    moves.sort((a, b) => _quickMovePriority(snap.board, b).compareTo(_quickMovePriority(snap.board, a)));
-
-    int bestScore = -1000000;
-    _AiMove? bestMove;
-    int alpha = -1000000;
-    const int beta = 1000000;
-
-    for (final m in moves.take(widget.difficulty == AiDifficulty.extreme ? 28 : 18)) {
-      final sim = _applyMoveSimulation(snap, m, 2);
-      final score = _minimax(sim, depth - 1, alpha, beta, false);
-      if (score > bestScore || (score == bestScore && _rng.nextBool())) {
-        bestScore = score;
-        bestMove = m;
-      }
-      if (score > alpha) alpha = score;
-    }
-    return bestMove ?? moves.first;
-  }
-
-  int _quickMovePriority(List<int?> board, _AiMove m) {
-    int p = 0;
-    final b = List<int?>.from(board);
-    if (m.from != null) b[m.from!] = null;
-    b[m.to] = 2;
-    if (_formsThabet(b, m.to, 2)) p += 500;
-    p += (adjacent[m.to]?.length ?? 0) * 15;
-    return p;
-  }
-
-  List<_AiMove> _generateMovesForPlayer(List<int?> board, int player, int remainingToPlace) {
-    final res = <_AiMove>[];
-    if (remainingToPlace > 0) {
+  List<_AiMove> _generateMoves(List<int?> board, int player, int rem) {
+    final out = <_AiMove>[];
+    if (rem > 0) {
       for (int i = 0; i < 24; i++) {
-        if (board[i] == null) res.add(_AiMove(from: null, to: i));
+        if (board[i] == null) out.add(_AiMove(from: null, to: i));
       }
-      return res;
+      return out;
     }
     for (int i = 0; i < 24; i++) {
       if (board[i] == player) {
         for (final n in adjacent[i]!) {
-          if (board[n] == null) res.add(_AiMove(from: i, to: n));
+          if (board[n] == null) out.add(_AiMove(from: i, to: n));
         }
       }
     }
-    return res;
+    return out;
   }
 
-  GameSnapshot _applyMoveSimulation(GameSnapshot origin, _AiMove m, int player) {
-    final s = origin.clone();
-    if (m.from != null) s.board[m.from!] = null;
-    s.board[m.to] = player;
-    if (player == 1 && s.p1RemainingToPlace > 0) s.p1RemainingToPlace -= 1;
-    if (player == 2 && s.p2RemainingToPlace > 0) s.p2RemainingToPlace -= 1;
-
-    if (_formsThabet(s.board, m.to, player)) {
-      final opp = player == 1 ? 2 : 1;
-      final victim = _chooseBestRemovalTarget(s.board, opp);
-      if (victim != null) s.board[victim] = null;
-    }
-
-    s.currentPlayer = player == 1 ? 2 : 1;
-    _syncCountsAndPhase(s);
-    return s;
-  }
-
-  int? _chooseBestRemovalTarget(List<int?> board, int opponent) {
-    int? bestIdx;
-    int bestScore = -100000;
-    bool allProtected = _allOpponentProtected(board, opponent);
-
-    for (int i = 0; i < 24; i++) {
-      if (board[i] != opponent) continue;
-      if (!allProtected && _isProtectedByThabet(board, i, opponent)) continue;
-
-      int score = 0;
-      for (final line in thabetLines) {
-        if (!line.contains(i)) continue;
-        int oppCount = line.where((idx) => board[idx] == opponent).length;
-        int emptyCount = line.where((idx) => board[idx] == null).length;
-        if (oppCount == 2 && emptyCount == 1) score += 120;
-        if (oppCount == 1 && emptyCount == 2) score += 25;
-      }
-      score += (adjacent[i]?.length ?? 0) * 10;
-      if (score > bestScore) {
-        bestScore = score;
-        bestIdx = i;
-      }
-    }
-    return bestIdx;
-  }
-
-  int _minimax(GameSnapshot s, int depth, int alpha, int beta, bool maximizingAi) {
-    if (s.winner == 2) return 100000 + depth * 100;
-    if (s.winner == 1) return -100000 - depth * 100;
-    if (depth <= 0) return _evaluateBoard(s);
-
-    final player = maximizingAi ? 2 : 1;
-    final rem = player == 1 ? s.p1RemainingToPlace : s.p2RemainingToPlace;
-    final moves = _generateMovesForPlayer(s.board, player, rem);
-    if (moves.isEmpty) return maximizingAi ? -90000 : 90000;
-
-    if (maximizingAi) {
-      int value = -1000000;
-      for (final m in moves.take(16)) {
-        final child = _applyMoveSimulation(s, m, 2);
-        value = max(value, _minimax(child, depth - 1, alpha, beta, false));
-        alpha = max(alpha, value);
-        if (alpha >= beta) break;
-      }
-      return value;
-    } else {
-      int value = 1000000;
-      for (final m in moves.take(16)) {
-        final child = _applyMoveSimulation(s, m, 1);
-        value = min(value, _minimax(child, depth - 1, alpha, beta, true));
-        beta = min(beta, value);
-        if (alpha >= beta) break;
-      }
-      return value;
-    }
-  }
-
-  int _evaluateBoard(GameSnapshot s) {
+  int _scoreMove(GameSnapshot s, _AiMove m) {
+    final b = List<int?>.from(s.board);
+    if (m.from != null) b[m.from!] = null;
+    b[m.to] = 2;
     int score = 0;
-    int aiPieces = s.board.where((c) => c == 2).length + s.p2RemainingToPlace;
-    int p1Pieces = s.board.where((c) => c == 1).length + s.p1RemainingToPlace;
-    score += (aiPieces - p1Pieces) * 260;
-
-    int aiOpenTwo = 0;
-    int p1OpenTwo = 0;
-
+    if (_formsThabet(b, m.to, 2)) score += 300;
     for (final line in thabetLines) {
-      int c2 = line.where((idx) => s.board[idx] == 2).length;
-      int c1 = line.where((idx) => s.board[idx] == 1).length;
-      int emp = line.where((idx) => s.board[idx] == null).length;
-
-      if (c2 == 3) score += 180;
-      if (c1 == 3) score -= 190;
-      if (c2 == 2 && emp == 1) aiOpenTwo += 1;
-      if (c1 == 2 && emp == 1) p1OpenTwo += 1;
+      if (!line.contains(m.to)) continue;
+      final c1 = line.where((i) => b[i] == 1).length;
+      final emp = line.where((i) => b[i] == null).length;
+      if (c1 == 2 && emp == 1) score += 140;
     }
-
-    score += aiOpenTwo * 130;
-    score -= p1OpenTwo * 155;
-    if (aiOpenTwo >= 2) score += 320;
-
-    int aiMobility = 0;
-    int p1Mobility = 0;
-    for (int i = 0; i < 24; i++) {
-      if (s.board[i] == 2) {
-        aiMobility += (adjacent[i] ?? []).where((n) => s.board[n] == null).length;
-      } else if (s.board[i] == 1) {
-        p1Mobility += (adjacent[i] ?? []).where((n) => s.board[n] == null).length;
-      }
-    }
-    score += (aiMobility - p1Mobility) * 18;
+    score += (adjacent[m.to]?.length ?? 0) * 12 + _rng.nextInt(15);
     return score;
   }
 
-  String _difficultyLabel(AiDifficulty d) => switch (d) {
-        AiDifficulty.medium => 'متوسط',
-        AiDifficulty.hard => 'صعب',
-        AiDifficulty.extreme => 'صعب جداً 🔥',
+  int? _pickVictim(List<int?> board, int opp) {
+    final allProt = _allProtected(board, opp);
+    for (int i = 0; i < 24; i++) {
+      if (board[i] == opp && (allProt || !_isProtected(board, i, opp))) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  void _showHint() {
+    if (!widget.hintsEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('التلميحات متوقفة من الإعدادات')),
+      );
+      return;
+    }
+    final p = _state.currentPlayer;
+    final rem = p == 1 ? _state.p1RemainingToPlace : _state.p2RemainingToPlace;
+    final moves = _generateMoves(_state.board, p, rem);
+    if (moves.isNotEmpty) {
+      setState(() {
+        _state.highlightNodes = {moves.first.to};
+        _state.statusText = 'تلميح: النقطة المضيئة خيار مناسب';
+      });
+    }
+  }
+
+  void _replayMoves() {
+    if (_moves.isEmpty) return;
+    final firstBoard = List<int?>.from(_moves.first.boardBefore);
+    setState(() {
+      _state.board
+        ..clear()
+        ..addAll(firstBoard);
+      _state.phase = GamePhase.gameOver;
+      _state.statusText = 'إعادة عرض بداية المباراة (${_moves.length} نقلة)';
+    });
+  }
+
+  Color get _boardSurfaceColor => switch (widget.boardTheme) {
+        BoardTheme.wood => const Color(0xFFD59D5D),
+        BoardTheme.emerald => const Color(0xFF2B7A5E),
+        BoardTheme.obsidian => const Color(0xFF34373F),
       };
 
-  String _themeLabel(AppThemePreset t) => switch (t) {
-        AppThemePreset.wood => 'خشبي ملكي',
-        AppThemePreset.emerald => 'زمردي',
-        AppThemePreset.obsidian => 'ليلي ذهبي',
+  Color get _lineStrokeColor => switch (widget.boardTheme) {
+        BoardTheme.wood => const Color(0xFF4B3219),
+        BoardTheme.emerald => const Color(0xFFD8F3DC),
+        BoardTheme.obsidian => const Color(0xFFD9A05B),
       };
-
-  void _openRulesDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('قوانين «ثبت»'),
-        content: const SingleChildScrollView(
-          child: Text(
-            '• ضع 9 قطع لكل لاعب بالتناوب على نقاط التقاطع الفارغة.\n'
-            '• عند اكتمال 3 قطع في صف مستقيم («ثبت») أزل قطعة للخصم غير محمية بصف مكتمل.\n'
-            '• حرّك قطعة إلى نقطة مجاورة فارغة فقط.\n'
-            '• يفوز اللاعب إذا قلت قطع الخصم عن 3 أو حُصرت حركاته.',
-            style: TextStyle(height: 1.55),
-          ),
-        ),
-        actions: [
-          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('فهمت')),
-        ],
-      ),
-    );
-  }
-
-  void _openSettingsSheet() {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('الإعدادات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SwitchListTile(
-              title: const Text('المؤثرات الصوتية'),
-              value: widget.soundEnabled,
-              onChanged: (v) {
-                widget.onToggleSound(v);
-                Navigator.pop(context);
-              },
-            ),
-            Text('مستوى ${widget.aiName}🤖 (بحمد):'),
-            const SizedBox(height: 6),
-            SegmentedButton<AiDifficulty>(
-              segments: AiDifficulty.values
-                  .map((d) => ButtonSegment<AiDifficulty>(value: d, label: Text(_difficultyLabel(d))))
-                  .toList(),
-              selected: {widget.difficulty},
-              onSelectionChanged: (set) {
-                widget.onChangeDifficulty(set.first);
-                Navigator.pop(context);
-              },
-            ),
-            const SizedBox(height: 12),
-            const Text('الثيم:'),
-            const SizedBox(height: 6),
-            SegmentedButton<AppThemePreset>(
-              segments: AppThemePreset.values
-                  .map((t) => ButtonSegment<AppThemePreset>(value: t, label: Text(_themeLabel(t))))
-                  .toList(),
-              selected: {widget.themePreset},
-              onSelectionChanged: (set) {
-                widget.onChangeTheme(set.first);
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _openStatsDialog() {
-    final rate = widget.totalGames == 0 ? 0 : ((widget.wins / widget.totalGames) * 100).round();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('الإحصائيات'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('المباريات: ${widget.totalGames}'),
-            Text('الفوز: ${widget.wins}'),
-            Text('الخسارة: ${widget.losses}'),
-            Text('التعادل: ${widget.draws}'),
-            Text('نسبة الفوز: $rate%'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              widget.onResetStats();
-              Navigator.pop(context);
-            },
-            child: const Text('تصفير'),
-          ),
-          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    final aiTitle = '${widget.aiName}🤖 (بحمد)';
-    final lineColor = switch (widget.themePreset) {
-      AppThemePreset.wood => const Color(0xFFD9A066),
-      AppThemePreset.emerald => const Color(0xFF6EE7B7),
-      AppThemePreset.obsidian => const Color(0xFFE5C158),
-    };
+    final p1Total = _state.p1PiecesOnBoard + _state.p1RemainingToPlace;
+    final p2Total = _state.p2PiecesOnBoard + _state.p2RemainingToPlace;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.brandTitle),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(icon: const Icon(Icons.help_outline), onPressed: _openRulesDialog),
-          IconButton(icon: const Icon(Icons.bar_chart), onPressed: _openStatsDialog),
-          IconButton(icon: const Icon(Icons.settings), onPressed: _openSettingsSheet),
-        ],
-      ),
+      backgroundColor: const Color(0xFF141414),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          child: Column(
-            children: [
-              Row(
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Column(
                 children: [
-                  ChoiceChip(
-                    label: Text('ضد $aiTitle'),
-                    selected: _gameMode == GameMode.vsAi,
-                    onSelected: (_) {
-                      setState(() => _gameMode = GameMode.vsAi);
-                      _startNewGame();
-                    },
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'الكمبيوتر 🤖 (بحمد)',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
+                        onPressed: () => setState(() => _isPaused = !_isPaused),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        onPressed: _newMatch,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  ChoiceChip(
-                    label: const Text('لاعبان'),
-                    selected: _gameMode == GameMode.localTwoPlayers,
-                    onSelected: (_) {
-                      setState(() => _gameMode = GameMode.localTwoPlayers);
-                      _startNewGame(triggerAiIfNeeded: false);
-                    },
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatClock(_elapsedSeconds),
+                    style: const TextStyle(fontSize: 14, color: Colors.white70),
                   ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: _history.isNotEmpty && !_aiThinking ? _undoLastTurn : null,
-                    icon: const Icon(Icons.undo),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF222222),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      _isPaused ? 'اللعبة متوقفة مؤقتاً' : _state.statusText,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _state.statusText,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final w = constraints.maxWidth;
-                      final h = constraints.maxHeight;
-                      return Stack(
-                        children: [
-                          CustomPaint(
-                            size: Size(w, h),
-                            painter: _ThabetBoardPainter(lineColor: lineColor, coords: nodeCoords),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      _formatElapsed(_elapsedSeconds),
+                      style: const TextStyle(fontSize: 13, color: Colors.white54),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: _boardSurfaceColor,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 6)),
+                            ],
                           ),
-                          for (int i = 0; i < 24; i++)
-                            Positioned(
-                              left: nodeCoords[i].dx * w - 22,
-                              top: nodeCoords[i].dy * h - 22,
-                              child: GestureDetector(
-                                onTap: () => _onNodeTap(i),
-                                child: _buildFloatingPiece(i, lineColor),
-                              ),
+                          child: LayoutBuilder(
+                            builder: (ctx, c) {
+                              final w = c.maxWidth;
+                              final h = c.maxHeight;
+                              return Stack(
+                                children: [
+                                  CustomPaint(
+                                    size: Size(w, h),
+                                    painter: _BoardLinesPainter(lineColor: _lineStrokeColor, coords: nodeCoords),
+                                  ),
+                                  for (int i = 0; i < 24; i++)
+                                    Positioned(
+                                      left: nodeCoords[i].dx * w - 21,
+                                      top: nodeCoords[i].dy * h - 21,
+                                      child: GestureDetector(
+                                        onTap: () => _onNodeTap(i),
+                                        child: _buildStone(i),
+                                      ),
+                                    ),
+                                  if (_state.showThabetBadge)
+                                    Center(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFE5B373),
+                                          borderRadius: BorderRadius.circular(12),
+                                          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
+                                        ),
+                                        child: const Text(
+                                          'إثبت',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF1E140A),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildPoolRow(count: p2Total, isWhite: false),
+                  const SizedBox(height: 6),
+                  _buildPoolRow(count: p1Total, isWhite: true),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _bottomActionButton(
+                          icon: Icons.refresh,
+                          label: 'مباراة جديدة',
+                          onTap: _newMatch,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _bottomActionButton(
+                          icon: Icons.replay,
+                          label: 'إعادة العرض',
+                          onTap: _replayMoves,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _bottomActionButton(
+                          icon: Icons.lightbulb_outline,
+                          label: 'تلميح',
+                          onTap: _showHint,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1F1F1F),
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Color(0xFF333333)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.home, size: 18),
+                      label: const Text('الرئيسية'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_state.phase == GamePhase.gameOver && _state.winner != null)
+              Container(
+                color: Colors.black54,
+                child: Center(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 28),
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF23201C),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF473E33)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('🏆', style: TextStyle(fontSize: 38)),
+                        const SizedBox(height: 8),
+                        Text(
+                          _state.winner == 1 ? 'فاز الأبيض' : 'فاز الأسود',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFE5B373)),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'السبب: ${_state.winReason}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 13.5, color: Colors.white70),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'الوقت المستغرق: ${_formatElapsed(_elapsedSeconds)}',
+                          style: const TextStyle(fontSize: 13.5, color: Colors.white70),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _replayMoves,
+                            child: const Text('إعادة العرض'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('الرئيسية'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFFD89E5A),
+                              foregroundColor: const Color(0xFF1A1107),
                             ),
-                        ],
-                      );
-                    },
+                            onPressed: _newMatch,
+                            child: const Text('مباراة جديدة', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Text('اللاعب 1: ${_state.p1PiecesOnBoard + _state.p1RemainingToPlace}'),
-                  Text('اللاعب 2: ${_state.p2PiecesOnBoard + _state.p2RemainingToPlace}'),
-                ],
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => _startNewGame(),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('جولة جديدة'),
-                ),
-              ),
-            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPoolRow({required int count, required bool isWhite}) {
+    final safeCount = count.clamp(0, 9);
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 6,
+      children: List.generate(
+        safeCount,
+        (_) => Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isWhite ? const Color(0xFFF5F5F5) : const Color(0xFF191919),
+            border: Border.all(
+              color: isWhite ? const Color(0xFF8C8C8C) : const Color(0xFF5A5A5A),
+              width: 1.5,
+            ),
+            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 3, offset: Offset(0, 1.5))],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildFloatingPiece(int idx, Color lineColor) {
-    final occupant = _state.board[idx];
-    final isSelected = _state.selectedIndex == idx;
-    final isHighlighted = _state.lastMovedNodes.contains(idx);
+  Widget _buildStone(int idx) {
+    final v = _state.board[idx];
+    final selected = _state.selectedIndex == idx;
+    final highlighted = _state.highlightNodes.contains(idx);
 
-    if (occupant == null) {
+    if (v == null) {
       return SizedBox(
-        width: 44,
-        height: 44,
+        width: 42,
+        height: 42,
         child: Center(
           child: Container(
-            width: 13,
-            height: 13,
+            width: highlighted ? 18 : 13,
+            height: highlighted ? 18 : 13,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: lineColor.withValues(alpha: 0.4),
+              color: highlighted ? Colors.amberAccent : const Color(0xFFF6F2EC),
+              border: Border.all(color: const Color(0xFF4B3219), width: 2),
             ),
           ),
         ),
       );
     }
 
-    final colors = occupant == 1
-        ? const [Color(0xFFFFFFFF), Color(0xFFCBD5E1)]
-        : const [Color(0xFFFF7A7A), Color(0xFFDC2626)];
-
-    final shadowColor = isSelected
-        ? Colors.cyanAccent
-        : (isHighlighted ? Colors.amberAccent : Colors.black.withValues(alpha: 0.45));
-
+    final isWhite = v == 1;
     return Container(
-      width: 44,
-      height: 44,
+      width: 42,
+      height: 42,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: RadialGradient(
-          center: const Alignment(-0.32, -0.35),
-          radius: 0.75,
-          colors: colors,
+        color: isWhite ? const Color(0xFFF7F7F7) : const Color(0xFF171717),
+        border: Border.all(
+          color: selected
+              ? Colors.cyanAccent
+              : (highlighted ? Colors.amberAccent : (isWhite ? const Color(0xFF7A7A7A) : const Color(0xFF525252))),
+          width: (selected || highlighted) ? 3 : 2,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: (isSelected || isHighlighted) ? 14 : 8,
-            spreadRadius: (isSelected || isHighlighted) ? 2 : 0.5,
-            offset: const Offset(0, 3),
-          ),
+        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 5, offset: Offset(0, 2.5))],
+      ),
+    );
+  }
+
+  Widget _bottomActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: const Color(0xFF1F1F1F),
+        foregroundColor: Colors.white,
+        side: const BorderSide(color: Color(0xFF333333)),
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      onPressed: onTap,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFFD89E5A)),
+          const SizedBox(width: 4),
+          Flexible(child: Text(label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5))),
         ],
       ),
     );
@@ -1053,40 +1372,40 @@ class _AiMove {
   _AiMove({required this.from, required this.to});
 }
 
-class _ThabetBoardPainter extends CustomPainter {
+class _BoardLinesPainter extends CustomPainter {
   final Color lineColor;
   final List<Offset> coords;
 
-  _ThabetBoardPainter({required this.lineColor, required this.coords});
+  _BoardLinesPainter({required this.lineColor, required this.coords});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    final p = Paint()
       ..color = lineColor
-      ..strokeWidth = 2.8
+      ..strokeWidth = 3.2
       ..style = PaintingStyle.stroke;
 
-    void connect(int a, int b) {
+    void seg(int a, int b) {
       canvas.drawLine(
         Offset(coords[a].dx * size.width, coords[a].dy * size.height),
         Offset(coords[b].dx * size.width, coords[b].dy * size.height),
-        paint,
+        p,
       );
     }
 
-    connect(0, 1); connect(1, 2); connect(2, 14); connect(14, 23);
-    connect(23, 22); connect(22, 21); connect(21, 9); connect(9, 0);
+    seg(0, 1); seg(1, 2); seg(2, 14); seg(14, 23);
+    seg(23, 22); seg(22, 21); seg(21, 9); seg(9, 0);
 
-    connect(3, 4); connect(4, 5); connect(5, 13); connect(13, 20);
-    connect(20, 19); connect(19, 18); connect(18, 10); connect(10, 3);
+    seg(3, 4); seg(4, 5); seg(5, 13); seg(13, 20);
+    seg(20, 19); seg(19, 18); seg(18, 10); seg(10, 3);
 
-    connect(6, 7); connect(7, 8); connect(8, 12); connect(12, 17);
-    connect(17, 16); connect(16, 15); connect(15, 11); connect(11, 6);
+    seg(6, 7); seg(7, 8); seg(8, 12); seg(12, 17);
+    seg(17, 16); seg(16, 15); seg(15, 11); seg(11, 6);
 
-    connect(1, 4); connect(4, 7);
-    connect(9, 10); connect(10, 11);
-    connect(12, 13); connect(13, 14);
-    connect(16, 19); connect(19, 22);
+    seg(1, 4); seg(4, 7);
+    seg(9, 10); seg(10, 11);
+    seg(12, 13); seg(13, 14);
+    seg(16, 19); seg(19, 22);
   }
 
   @override
